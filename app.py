@@ -22,7 +22,7 @@ load_dotenv()
 # ─── Configuração da página ───────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Excessive Logs Analyzer",
+    page_title="Analisador de Logs Excessivos",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -43,6 +43,24 @@ st.markdown("""
     .severity-critical { color: #721c24; font-weight: bold; }
     .issue-row { border-left: 3px solid #ff4b4b; padding-left: 8px; margin: 4px 0; }
     .rec-row   { border-left: 3px solid #0068c9; padding-left: 8px; margin: 4px 0; }
+
+    /* Oculta textos internos do file_uploader gerados pelo Streamlit em inglês */
+    [data-testid="stFileUploaderDropzoneInstructions"] > div > span { display: none; }
+    [data-testid="stFileUploaderDropzoneInstructions"] > div::before {
+        content: "Arraste e solte o arquivo aqui";
+        font-size: 14px;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"] > div > small { display: none; }
+    [data-testid="stFileUploaderDropzoneInstructions"] > div::after {
+        content: "Limite: 200 MB por arquivo • JSON";
+        font-size: 12px;
+        color: #888;
+        display: block;
+    }
+    [data-testid="stFileUploaderDropzone"] button[data-testid="baseButton-secondary"] span { display: none; }
+    [data-testid="stFileUploaderDropzone"] button[data-testid="baseButton-secondary"]::before {
+        content: "Procurar arquivo";
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -187,7 +205,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                 },
                 "overall_assessment": overall,
             }
-            st.write(f"✓ {provider.upper()} concluído — Health Score: {overall['health_score']}/100")
+            st.write(f"✓ {provider.upper()} concluído — Pontuação de Saúde: {overall['health_score']}/100")
 
         status.update(label="✅ Análise concluída!", state="complete", expanded=False)
 
@@ -238,15 +256,15 @@ def _calculate_assessment(level_analysis, unnecessary_analysis, sampling_analysi
         priority_actions.append({"priority": 2, "action": "Remover logs desnecessários",
                                   "reason": f"Potencial de redução: {unnecessary_analysis['reduction_potential_percentage']:.1f}%"})
     if sampling_analysis["severity"] in ("critical", "high"):
-        priority_actions.append({"priority": 3, "action": "Implementar sampling",
-                                  "reason": "Volume requer sampling"})
+        priority_actions.append({"priority": 3, "action": "Implementar amostragem",
+                                  "reason": "Volume de logs requer amostragem"})
 
     return {
         "overall_severity": max_severity,
         "health_score": health_score,
         "total_issues": total_issues,
         "priority_actions": priority_actions,
-        "summary": f"{total_issues} issues detectados — severidade {max_severity.upper()}",
+        "summary": f"{total_issues} problema(s) detectado(s) — severidade {max_severity.upper()}",
     }
 
 
@@ -289,11 +307,11 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
 
     # Cabeçalho com métricas
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Health Score", f"{assessment['health_score']}/100",
+    col1.metric("Pontuação de Saúde", f"{assessment['health_score']}/100",
                 delta=None,
                 help="0 = crítico, 100 = perfeito")
     col2.metric("Severidade", assessment["overall_severity"].upper())
-    col3.metric("Issues", assessment["total_issues"])
+    col3.metric("Problemas", assessment["total_issues"])
     col4.metric("Modelo", metadata.get("model") or "regras")
 
     if assessment.get("priority_actions"):
@@ -320,10 +338,10 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
             df_pct = pd.DataFrame({"Nível": list(pct.keys()), "%": list(pct.values())}).set_index("Nível")
             st.dataframe(df_pct, use_container_width=True)
         if ll.get("llm_insights"):
-            st.info(f"💡 **Insight IA:** {ll['llm_insights']}")
+            st.info(f"💡 **Observação da IA:** {ll['llm_insights']}")
         issues = ll.get("issues", [])
         if issues:
-            st.markdown(f"**{len(issues)} issue(s) encontrado(s):**")
+            st.markdown(f"**{len(issues)} problema(s) encontrado(s):**")
             for issue in issues:
                 sev = issue.get("severity", "")
                 st.markdown(
@@ -333,7 +351,7 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
                     unsafe_allow_html=True,
                 )
         else:
-            st.success("Nenhum issue encontrado nesta análise.")
+            st.success("Nenhum problema encontrado nesta análise.")
 
     # Análise 2 — Logs desnecessários
     with st.expander("🔎 Análise 2: Detecção de Logs Desnecessários", expanded=True):
@@ -342,10 +360,10 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
         col_a.metric("Logs desnecessários", ul.get("unnecessary_logs_count", 0))
         col_b.metric("Potencial de redução", f"{ul.get('reduction_potential_percentage', 0):.1f}%")
         if ul.get("llm_insights"):
-            st.info(f"💡 **Insight IA:** {ul['llm_insights']}")
+            st.info(f"💡 **Observação da IA:** {ul['llm_insights']}")
         issues = ul.get("issues", [])
         if issues:
-            st.markdown(f"**{len(issues)} issue(s) encontrado(s):**")
+            st.markdown(f"**{len(issues)} problema(s) encontrado(s):**")
             for issue in issues:
                 sev = issue.get("severity", "")
                 st.markdown(
@@ -355,17 +373,17 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
                     unsafe_allow_html=True,
                 )
         else:
-            st.success("Nenhum issue encontrado nesta análise.")
+            st.success("Nenhum problema encontrado nesta análise.")
 
     # Análise 3 — Sampling
-    with st.expander("📈 Análise 3: Recomendações de Sampling", expanded=True):
+    with st.expander("📈 Análise 3: Recomendações de Amostragem", expanded=True):
         sr = analyses["sampling_recommendations"]
         current = sr.get("current_state", {})
         col_r, col_e = st.columns(2)
         col_r.metric("Taxa atual", f"{current.get('rate_per_minute', 0):.1f} logs/min")
         col_e.metric("Redução estimada", sr.get("estimated_reduction", {}).get("estimated_percentage", "—"))
         if sr.get("llm_insights"):
-            st.info(f"💡 **Insight IA:** {sr['llm_insights']}")
+            st.info(f"💡 **Observação da IA:** {sr['llm_insights']}")
         strategies = sr.get("recommended_strategies", [])
         if strategies:
             st.markdown(f"**{len(strategies)} estratégia(s) recomendada(s):**")
@@ -390,11 +408,11 @@ def _show_comparative_tab(results_by_mode: Dict[str, Any]):
         analyses   = data["analyses"]
         rows.append({
             "Provedor": mode.upper(),
-            "Health Score": assessment["health_score"],
+            "Pontuação de Saúde": assessment["health_score"],
             "Severidade": assessment["overall_severity"].upper(),
-            "Issues": assessment["total_issues"],
-            "Logs desnecessários": f"{analyses['unnecessary_logs'].get('reduction_potential_percentage',0):.1f}%",
-            "Estratégias sampling": len(analyses["sampling_recommendations"].get("recommended_strategies", [])),
+            "Problemas": assessment["total_issues"],
+            "Redução potencial": f"{analyses['unnecessary_logs'].get('reduction_potential_percentage',0):.1f}%",
+            "Estratégias de amostragem": len(analyses["sampling_recommendations"].get("recommended_strategies", [])),
             "Modelo": data["metadata"].get("model") or "regras",
         })
 
@@ -416,7 +434,7 @@ def _build_individual_report(provider: str, data: Dict[str, Any], summary: Dict[
 
 def main():
     # Cabeçalho
-    st.title("🔍 Excessive Logs Analyzer")
+    st.title("🔍 Analisador de Logs Excessivos")
     st.markdown(
         "Identifica e mitiga o antipadrão **Excessive Logs** usando análise estatística e IA. "
         "Configure os provedores na barra lateral e clique em **Executar Análise**."
@@ -433,7 +451,7 @@ def main():
         uploaded = st.file_uploader(
             "Selecione um arquivo JSON de logs",
             type=["json"],
-            help="Formato esperado: lista de objetos JSON com campos timestamp, level, service, message...",
+            help="Formato esperado: lista de objetos JSON com campos data/hora, nível, serviço e mensagem.",
         )
 
         use_default = st.checkbox(
@@ -449,7 +467,7 @@ def main():
         st.subheader("🤖 Provedores de IA")
         availability = _check_provider_availability()
 
-        puter_status = "🟢 Online" if availability["claude"] else "🔴 Offline"
+        puter_status = "🟢 Conectado" if availability["claude"] else "🔴 Desconectado"
         st.caption(f"Puter Bridge: {puter_status}")
 
         selected: Dict[str, bool] = {}
@@ -493,7 +511,7 @@ def main():
 
         # Dica de Puter
         if not availability["claude"]:
-            with st.expander("Como ativar Claude/ChatGPT?"):
+            with st.expander("Como ativar Claude e ChatGPT?"):
                 st.code("./start_puter.sh", language="bash")
                 st.caption("Inicia o Puter Bridge que provê Claude e ChatGPT gratuitamente.")
 
@@ -516,15 +534,15 @@ def main():
             try:
                 with open(log_path_preview, encoding="utf-8") as f:
                     preview_logs = json.load(f)
-                st.subheader(f"📋 Preview — {len(preview_logs)} logs carregados")
+                st.subheader(f"📋 Pré-visualização — {len(preview_logs)} logs carregados")
                 import pandas as pd
                 preview_rows = []
                 for log in preview_logs[:10]:
                     preview_rows.append({
-                        "timestamp": log.get("timestamp", ""),
-                        "level": log.get("level", ""),
-                        "service": log.get("service", ""),
-                        "message": log.get("message", "")[:80],
+                        "Data/Hora": log.get("timestamp", ""),
+                        "Nível": log.get("level", ""),
+                        "Serviço": log.get("service", ""),
+                        "Mensagem": log.get("message", "")[:80],
                     })
                 st.dataframe(pd.DataFrame(preview_rows), use_container_width=True)
                 st.caption("Exibindo os 10 primeiros logs.")
@@ -597,7 +615,7 @@ def main():
     st.divider()
 
     # Abas por provedor + comparativo
-    tab_labels = [f"🤖 {p.upper()}" for p in results_by_mode] + ["📊 Comparativo"]
+    tab_labels = [f"🤖 {PROVIDER_LABELS.get(p, p.upper()).split(' —')[0]}" for p in results_by_mode] + ["📊 Comparativo"]
     tabs = st.tabs(tab_labels)
 
     for i, (provider, data) in enumerate(results_by_mode.items()):
