@@ -8,7 +8,7 @@ Guia completo para utilizar a ferramenta de análise de logs excessivos.
 
 1. [Instalação](#instalação)
 2. [Como Funciona](#como-funciona)
-3. [Uso Básico](#uso-básico)
+3. [Iniciando a Interface Gráfica](#iniciando-a-interface-gráfica)
 4. [Configuração](#configuração)
 5. [Interpretação de Resultados](#interpretação-de-resultados)
 6. [Exemplos Práticos](#exemplos-práticos)
@@ -22,6 +22,93 @@ Guia completo para utilizar a ferramenta de análise de logs excessivos.
 - Python 3.8 ou superior
 - pip (gerenciador de pacotes Python)
 - Node.js 18 ou superior (apenas para usar Claude/ChatGPT via Puter)
+
+### Instalando os Pré-requisitos
+
+Se você ainda não tem Python ou Node.js instalados, siga as instruções abaixo para o seu sistema operacional.
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+# Atualizar lista de pacotes
+sudo apt update
+
+# Instalar Python 3 e pip
+sudo apt install -y python3 python3-pip python3-venv
+
+# Verificar instalação
+python3 --version
+pip3 --version
+
+# Instalar Node.js 18+ via NodeSource
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verificar instalação
+node --version
+npm --version
+```
+
+#### Linux (Fedora/RHEL/CentOS)
+
+```bash
+# Instalar Python 3 e pip
+sudo dnf install -y python3 python3-pip
+
+# Instalar Node.js 18+
+sudo dnf install -y nodejs npm
+
+# Verificar instalação
+python3 --version
+node --version
+```
+
+#### macOS
+
+```bash
+# Instalar Homebrew (se ainda não tiver)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Instalar Python 3
+brew install python
+
+# Instalar Node.js 18+
+brew install node@18
+
+# Verificar instalação
+python3 --version
+pip3 --version
+node --version
+npm --version
+```
+
+#### Windows
+
+Baixe e instale os instaladores oficiais:
+
+1. **Python 3.8+:**
+   - Acesse https://www.python.org/downloads/windows/
+   - Baixe o instalador da versão mais recente (Python 3.x.x)
+   - Execute o instalador e **marque a opção "Add Python to PATH"** antes de clicar em "Install Now"
+   - Abra o Prompt de Comando e verifique:
+     ```bat
+     python --version
+     pip --version
+     ```
+
+2. **Node.js 18+:**
+   - Acesse https://nodejs.org/en/download/
+   - Baixe o instalador LTS para Windows (`.msi`)
+   - Execute o instalador com as opções padrão
+   - Abra o Prompt de Comando e verifique:
+     ```bat
+     node --version
+     npm --version
+     ```
+
+> **Dica:** Após instalar, feche e reabra o Prompt de Comando para que as variáveis de ambiente sejam atualizadas.
+
+---
 
 ### Passos de Instalação
 
@@ -42,9 +129,6 @@ cd puter-bridge
 npm install
 npm run auth
 cd ..
-
-# 5. Teste a instalação
-python3 src/main.py dataset/synthetic_logs.json
 ```
 
 **Windows:**
@@ -64,46 +148,17 @@ cd puter-bridge
 npm install
 npm run auth
 cd ..
-
-:: 5. Teste a instalação
-python src\main.py dataset\synthetic_logs.json
 ```
 
-Se ver o relatório de análise, a instalação está correta!
+## Iniciando a Interface Gráfica
 
----
+Com a instalação concluída, use a  interface gráfica para utilizar a ferramenta. Ela roda no navegador e não requer nenhum conhecimento de linha de comando além de um único comando para iniciá-la.
 
-## Como Funciona
-
-A ferramenta executa **todas as análises disponíveis** em uma única chamada, usando cada provedor configurado:
-
-| Provedor | Custo | Requer configuração |
-|----------|-------|---------------------|
-| **Groq** (Llama 3.3) | Gratuito | `GROQ_API_KEY` no `.env` |
-| **Google Gemini** | Gratuito | `GOOGLE_API_KEY` no `.env` |
-| **Claude** via Puter | Gratuito | Puter Bridge rodando |
-| **ChatGPT** via Puter | Gratuito | Puter Bridge rodando |
-| **Standard** (sem IA) | Gratuito | Nenhuma |
-
-Cada provedor disponível executa as 3 análises independentemente. Os resultados são comparados no relatório final, o que permite avaliar a consistência entre diferentes modelos.
-
----
-
-## Usando a Interface Gráfica
-
-A interface gráfica (GUI) é a forma mais simples de usar a ferramenta. Ela roda no navegador e não requer conhecimento de linha de comando além de um único comando para iniciá-la.
-
-### Pré-requisito
-
-O ambiente virtual deve estar criado e as dependências instaladas (veja a seção [Instalação](#instalação)).
-
----
-
-### Passo a passo — Linux/Mac
+### Linux/Mac
 
 **1. Abra um terminal na pasta do projeto.**
 
-**2. Inicie a interface gráfica:**
+**2. Inicie a interface:**
 
 ```bash
 ./start_ui.sh
@@ -113,7 +168,7 @@ O script verifica o ambiente virtual, instala o Streamlit se necessário e inici
 
 **3. Acesse no navegador:**
 
-Abra `http://127.0.0.1:8501` no seu navegador. A tela inicial exibe um preview dos primeiros 10 logs do dataset padrão.
+Abra `http://127.0.0.1:8501`. A tela inicial exibe um preview dos primeiros 10 logs do dataset padrão.
 
 **4. (Opcional) Ative Claude e ChatGPT via Puter:**
 
@@ -131,7 +186,7 @@ Pressione `Ctrl+C` no terminal onde o `start_ui.sh` está rodando.
 
 ---
 
-### Passo a passo — Windows
+### Windows
 
 **1. Abra o Explorador de Arquivos na pasta do projeto.**
 
@@ -156,6 +211,23 @@ A interface detecta automaticamente o Puter Bridge e habilita os provedores Clau
 **4. Para encerrar:**
 
 Feche a janela do Prompt de Comando onde o `start_ui.bat` está rodando, ou pressione `Ctrl+C`.
+
+---
+
+
+## Como Funciona
+
+A ferramenta executa **todas as análises disponíveis** em uma única chamada, usando cada provedor configurado:
+
+| Provedor | Custo | Requer configuração |
+|----------|-------|---------------------|
+| **Groq** (Llama 3.3) | Gratuito | `GROQ_API_KEY` no `.env` |
+| **Google Gemini** | Gratuito | `GOOGLE_API_KEY` no `.env` |
+| **Claude** via Puter | Gratuito | Puter Bridge rodando |
+| **ChatGPT** via Puter | Gratuito | Puter Bridge rodando |
+| **Standard** (sem IA) | Gratuito | Nenhuma |
+
+Cada provedor disponível executa as 3 análises independentemente. Os resultados são comparados no relatório final, o que permite avaliar a consistência entre diferentes modelos.
 
 ---
 
@@ -190,52 +262,7 @@ Após a execução:
 
 ---
 
-### Relatórios gerados
-
-Ao executar a análise pela interface, os mesmos relatórios da linha de comando são salvos em `reports/`:
-
-```
-reports/
-├── {nome}_groq.json
-├── {nome}_gemini.json
-├── {nome}_claude_ai.json
-├── {nome}_chatgpt.json
-├── {nome}_sem_ia.json
-└── {nome}_comparativo.json
-```
-
-Onde `{nome}` é o valor definido no campo "Nome base dos relatórios" (padrão: `synthetic_logs`).
-
----
-
-## Uso Básico (Linha de Comando)
-
-### Sintaxe do Comando
-
-```bash
-python3 src/main.py <arquivo_logs> [opções]
-```
-
-### Opções Disponíveis
-
-| Opção | Descrição | Exemplo |
-|-------|-----------|---------|
-| `-o, --output` | Nome base para os arquivos de relatório (sem extensão) | `-o meu_relatorio` |
-
-### Exemplos de Comandos
-
-```bash
-# Análise completa (todos os provedores disponíveis)
-python3 src/main.py dataset/synthetic_logs.json
-
-# Com nome de saída personalizado
-python3 src/main.py production_logs.json -o relatorio_producao
-
-# Usando o script que inicia o Puter Bridge automaticamente
-./run_with_puter.sh dataset/synthetic_logs.json
-```
-
-### Formato de Entrada
+### Formato do arquivo de logs
 
 A ferramenta espera logs em formato JSON com a seguinte estrutura:
 
@@ -268,6 +295,22 @@ A ferramenta espera logs em formato JSON com a seguinte estrutura:
 - `http` (opcional) - Dados HTTP
 - `error` (opcional) - Dados de erro
 - `tags` (opcional) - Tags do log
+
+### Relatórios gerados
+
+Após a análise, os relatórios são salvos automaticamente em `reports/`:
+
+```
+reports/
+├── {nome}_groq.json
+├── {nome}_gemini.json
+├── {nome}_claude_ai.json
+├── {nome}_chatgpt.json
+├── {nome}_sem_ia.json
+└── {nome}_comparativo.json
+```
+
+Onde `{nome}` é o valor definido no campo "Nome base dos relatórios" (padrão: `synthetic_logs`).
 
 ---
 
@@ -309,24 +352,19 @@ GEMINI_MODEL_NAME=gemini-flash-latest
 
 ### Configuração para Claude e ChatGPT (via Puter — GRATUITO)
 
-O Puter Bridge permite usar Claude e ChatGPT sem custo. Inicie-o antes de executar a análise:
+O Puter Bridge permite usar Claude e ChatGPT sem custo. Inicie-o em um terminal separado antes de abrir a interface:
 
+**Linux/Mac:**
 ```bash
-# Inicia o Puter Bridge
 ./start_puter.sh
-
-# Execute a análise normalmente
-python3 src/main.py dataset/synthetic_logs.json
-
-# Para o Puter Bridge ao terminar
-./stop_puter.sh
 ```
 
-Ou use o script integrado que gerencia tudo automaticamente:
-
-```bash
-./run_with_puter.sh dataset/synthetic_logs.json
+**Windows:**
+```bat
+start_puter.bat
 ```
+
+A interface detecta o Puter Bridge automaticamente e habilita os provedores Claude e ChatGPT na barra lateral.
 
 ---
 
@@ -346,7 +384,7 @@ reports/
 └── synthetic_logs_comparativo.json # Comparativo consolidado
 ```
 
-> **Atenção:** os arquivos são sobrescritos a cada execução. Use `-o` para nomear relatórios que precisem ser preservados.
+> **Atenção:** os arquivos são sobrescritos a cada execução. Altere o campo "Nome base dos relatórios" na barra lateral para preservar relatórios anteriores.
 
 ### Health Score
 
@@ -423,20 +461,12 @@ O relatório lista ações ordenadas por prioridade:
 
 ### Exemplo 1: Primeira Análise
 
-```bash
-# Análise completa com todos os provedores disponíveis
-python3 src/main.py production_logs.json -o initial_report
+1. Inicie a interface com `./start_ui.sh` (Linux/Mac) ou `start_ui.bat` (Windows)
+2. Na barra lateral, marque "Usar dataset padrão"
+3. Selecione o provedor **Standard (sem IA)** — não requer configuração
+4. Clique em **Executar Análise**
 
-# Ver Health Score do modo Standard
-cat reports/initial_report_sem_ia.json | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-print('Health Score:', data['overall_assessment']['health_score'])
-print('Severidade:', data['overall_assessment']['overall_severity'])
-"
-```
-
-**Resultado típico:**
+**Resultado típico na aba Standard:**
 ```
 Health Score: 65/100
 Severidade: MEDIUM
@@ -448,118 +478,29 @@ Potencial de redução: 28%
 
 ### Exemplo 2: Comparar Provedores
 
-```bash
-# Executa todos e gera relatório comparativo
-python3 src/main.py production_logs.json -o comparacao
-
-# Ver comparativo consolidado
-cat reports/comparacao_comparativo.json | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for mode, result in data['results_by_mode'].items():
-    score = result['overall_assessment']['health_score']
-    issues = result['overall_assessment']['total_issues']
-    print(f'{mode:10s}: Health={score}/100  Issues={issues}')
-"
-```
+1. Configure ao menos uma chave de API no arquivo `.env` (Groq ou Gemini)
+2. (Opcional) Inicie o Puter Bridge para habilitar Claude e ChatGPT
+3. Na barra lateral, marque todos os provedores disponíveis
+4. Clique em **Executar Análise**
+5. Acesse a **Aba Comparativo** para ver Health Score e issues lado a lado entre todos os provedores
 
 ---
 
 ### Exemplo 3: Workflow Completo de Melhoria
 
 **Passo 1: Análise antes da intervenção**
-```bash
-python3 src/main.py logs.json -o before
-```
+1. Faça upload do seu arquivo de logs na barra lateral
+2. Defina o campo "Nome base dos relatórios" como `before`
+3. Execute a análise — o relatório `reports/before_sem_ia.json` será gerado
 
 **Passo 2: Implementar recomendações**
-```bash
-# Ver recomendações detalhadas do Groq
-cat reports/before_groq.json | python3 -m json.tool | less
-```
+- Consulte as ações prioritárias exibidas na aba do provedor escolhido
+- Implemente as melhorias no seu sistema de logging
 
 **Passo 3: Validar melhorias**
-```bash
-python3 src/main.py logs_after.json -o after
-
-# Comparar scores
-echo "Antes:" && cat reports/before_sem_ia.json | python3 -c "
-import json, sys; d = json.load(sys.stdin)
-print('  Health Score:', d['overall_assessment']['health_score'])
-"
-echo "Depois:" && cat reports/after_sem_ia.json | python3 -c "
-import json, sys; d = json.load(sys.stdin)
-print('  Health Score:', d['overall_assessment']['health_score'])
-"
-```
-
----
-
-### Exemplo 4: CI/CD Integration
-
-```yaml
-# .github/workflows/analyze-logs.yml
-analyze_logs:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v2
-
-    - name: Install dependencies
-      run: pip install -r requirements.txt
-
-    - name: Analyze logs
-      run: python3 src/main.py logs/test.json -o report
-
-    - name: Check Health Score
-      run: |
-        SCORE=$(cat reports/report_sem_ia.json | python3 -c "
-        import json, sys
-        print(json.load(sys.stdin)['overall_assessment']['health_score'])
-        ")
-        if [ $SCORE -lt 70 ]; then
-          echo "❌ Health Score muito baixo: $SCORE"
-          exit 1
-        fi
-```
-
----
-
-### Exemplo 5: Análise Periódica
-
-```bash
-#!/bin/bash
-# Script para análise diária
-DATE=$(date +%Y%m%d)
-
-python3 src/main.py /var/logs/app.json -o "daily_${DATE}"
-
-SCORE=$(cat "reports/daily_${DATE}_sem_ia.json" | python3 -c "
-import json, sys
-print(json.load(sys.stdin)['overall_assessment']['health_score'])
-")
-
-if [ $SCORE -lt 70 ]; then
-    echo "⚠️ Health Score: $SCORE" | mail -s "Log Alert" admin@example.com
-fi
-```
-
----
-
-### Exemplo 6: Filtrar Resultados com jq
-
-```bash
-# Ver apenas ações prioritárias do Groq
-cat reports/analysis_groq.json | jq '.overall_assessment.priority_actions'
-
-# Ver potencial de redução
-cat reports/analysis_groq.json | jq '.analyses.unnecessary_logs.reduction_potential_percentage'
-
-# Ver estratégias de sampling
-cat reports/analysis_groq.json | jq '.analyses.sampling_recommendations.recommended_strategies'
-
-# Comparar Health Scores de todos os provedores
-cat reports/analysis_comparativo.json | jq '.results_by_mode | to_entries[] | {mode: .key, score: .value.overall_assessment.health_score}'
-```
+1. Faça upload dos logs atualizados
+2. Defina o nome base como `after`
+3. Execute novamente e compare o Health Score com o relatório anterior
 
 ---
 
@@ -571,24 +512,20 @@ cat reports/analysis_comparativo.json | jq '.results_by_mode | to_entries[] | {m
 pip install -r requirements.txt
 ```
 
-### Erro: "API Key não encontrada"
+### Provedor de IA aparece desabilitado na interface
+
+O provedor exige uma API key que ainda não foi configurada. Abra o arquivo `.env` na raiz do projeto e adicione a chave correspondente:
 
 ```bash
-# Verificar se .env existe
-ls -la .env
-
-# Criar a partir do exemplo
+# Criar .env a partir do exemplo (se ainda não existir)
 cp .env.example .env
+
 # Editar e adicionar sua chave
-nano .env
+nano .env        # Linux/Mac
+notepad .env     # Windows
 ```
 
-### Erro: "Arquivo de logs não encontrado"
-
-```bash
-# Usar caminho absoluto
-python3 src/main.py /caminho/completo/logs.json
-```
+Reinicie a interface após salvar o arquivo.
 
 ### Puter Bridge não conecta
 
@@ -601,19 +538,6 @@ curl http://localhost:3000/health
 
 # Verifique os logs do bridge
 cat puter-bridge.log
-```
-
-### Análise não usa IA mesmo com chave configurada
-
-```bash
-# Verificar se a chave está sendo carregada
-python3 -c "
-import os
-from dotenv import load_dotenv
-load_dotenv()
-print('GROQ:', os.getenv('GROQ_API_KEY', 'NÃO ENCONTRADA'))
-print('GOOGLE:', os.getenv('GOOGLE_API_KEY', 'NÃO ENCONTRADA'))
-"
 ```
 
 ### Formato de log inválido
@@ -635,10 +559,7 @@ Certifique-se que seu log tem os campos mínimos:
 
 ### 1. Preserve Relatórios Importantes
 
-```bash
-# Use -o com nome descritivo para não sobrescrever
-python3 src/main.py logs.json -o "producao_$(date +%Y%m%d)"
-```
+Antes de executar uma nova análise sobre os mesmos logs, altere o campo **"Nome base dos relatórios"** na barra lateral (ex: `producao_20260812`) para não sobrescrever resultados anteriores.
 
 ### 2. Compare Provedores para Maior Confiança
 
@@ -650,20 +571,13 @@ O modo Standard é determinístico — os mesmos logs sempre produzem o mesmo re
 
 ### 4. Dataset de Teste
 
-Use os logs sintéticos incluídos para validar a instalação e entender o formato esperado:
-
-```bash
-python3 src/main.py dataset/synthetic_logs.json
-```
+Na primeira execução, marque **"Usar dataset padrão"** na barra lateral para validar a instalação com os logs sintéticos incluídos.
 
 ---
 
 ## Recursos Adicionais
 
-- **Executar com Puter Bridge automático:** `./run_with_puter.sh`
-- **Executar análise sem Puter:** `./run_analysis.sh`
-- **Parar Puter Bridge:** `./stop_puter.sh`
-- **Gerar novo dataset sintético:** `python3 dataset/generate_synthetic_logs.py`
+- **Parar Puter Bridge:** `./stop_puter.sh` (Linux/Mac) ou feche o Prompt de Comando do `start_puter.bat` (Windows)
 - **Documentação técnica:** `docs/ARQUITETURA.md`
 - **Início rápido:** `docs/INICIO_RAPIDO.md`
 
