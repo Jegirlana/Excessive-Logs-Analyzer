@@ -44,6 +44,9 @@ st.markdown("""
     .issue-row { border-left: 3px solid #ff4b4b; padding-left: 8px; margin: 4px 0; }
     .rec-row   { border-left: 3px solid #0068c9; padding-left: 8px; margin: 4px 0; }
 
+    /* Oculta o botão de Deploy do Streamlit */
+    [data-testid="stAppDeployButton"] { display: none !important; }
+
     /* Oculta textos internos do file_uploader gerados pelo Streamlit em inglês */
     [data-testid="stFileUploaderDropzoneInstructions"] > div > span { display: none; }
     [data-testid="stFileUploaderDropzoneInstructions"] > div::before {
