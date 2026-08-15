@@ -26,6 +26,11 @@ st.set_page_config(
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
+    menu_items={
+        "Report a bug": None,
+        "Get help": None,
+        "About": "**Analisador de Logs Excessivos** — Identifica e mitiga o antipadrão Excessive Logs usando análise estatística e IA.",
+    },
 )
 
 st.markdown("""
@@ -46,6 +51,42 @@ st.markdown("""
 
     /* Oculta o botão de Deploy do Streamlit */
     [data-testid="stAppDeployButton"] { display: none !important; }
+
+    /* Traduz itens do menu de 3 pontinhos (tipo action — têm stMainMenuItemLabel) */
+    [data-testid="stMainMenuItem-rerun"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-clearCache"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-print"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-recordScreencast"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-about"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-changeTheme"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-theme-System"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-theme-Light"] [data-testid="stMainMenuItemLabel"],
+    [data-testid="stMainMenuItem-theme-Dark"] [data-testid="stMainMenuItemLabel"]
+        { font-size: 0 !important; }
+
+    [data-testid="stMainMenuItem-rerun"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Reexecutar"; font-size: 14px; }
+    [data-testid="stMainMenuItem-clearCache"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Limpar cache"; font-size: 14px; }
+    [data-testid="stMainMenuItem-print"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Imprimir"; font-size: 14px; }
+    [data-testid="stMainMenuItem-recordScreencast"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Gravar tela"; font-size: 14px; }
+    [data-testid="stMainMenuItem-about"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Sobre"; font-size: 14px; }
+    [data-testid="stMainMenuItem-changeTheme"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Tema"; font-size: 14px; }
+    [data-testid="stMainMenuItem-theme-System"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Padrão do sistema"; font-size: 14px; }
+    [data-testid="stMainMenuItem-theme-Light"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Claro"; font-size: 14px; }
+    [data-testid="stMainMenuItem-theme-Dark"] [data-testid="stMainMenuItemLabel"]::before
+        { content: "Escuro"; font-size: 14px; }
+
+    /* autoRerun é tipo toggle — o texto fica direto no botão, sem stMainMenuItemLabel */
+    [data-testid="stMainMenuItem-autoRerun"] { font-size: 0 !important; }
+    [data-testid="stMainMenuItem-autoRerun"]::before
+        { content: "Reexecução automática"; font-size: 14px; }
 
     /* Oculta textos internos do file_uploader gerados pelo Streamlit em inglês */
     [data-testid="stFileUploaderDropzoneInstructions"] > div > span { display: none; }
