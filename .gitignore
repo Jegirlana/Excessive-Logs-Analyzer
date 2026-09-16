@@ -39,6 +39,7 @@ ENV/
 # Reports (arquivos gerados pela ferramenta)
 reports/
 *.json
+!railway.json
 !puter-bridge/package.json
 !puter-bridge/package-lock.json
 !dataset/log_model.json
