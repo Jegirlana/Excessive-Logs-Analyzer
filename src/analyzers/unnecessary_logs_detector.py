@@ -279,48 +279,27 @@ class UnnecessaryLogsDetector:
         """Análise inteligente usando LLM para classificar logs como necessários/desnecessários."""
         print(f"      🤖 IA analisando {len(logs)} logs individualmente...")
 
-        # Amostra aleatória para análise (máximo 100 para não explodir o contexto)
-        sample_size = min(100, len(logs))
+        # Amostra aleatória reduzida para respeitar limites de tokens por minuto
+        sample_size = min(40, len(logs))
         sample_logs = random.sample(logs, sample_size)
 
         # Prepara prompt para classificação em batch
-        system_prompt = """Você é um especialista em observabilidade e logging.
-Sua tarefa é analisar logs e classificar cada um como NECESSÁRIO ou DESNECESSÁRIO.
-
-Um log é DESNECESSÁRIO se:
-- É de asset estático (js, css, imagens)
-- É de operação trivial bem-sucedida (GET 200 de health check)
-- Tem mensagem genérica sem contexto ("ok", "success", "done")
-- É altamente repetitivo sem valor incremental
-- Não ajuda em troubleshooting ou monitoramento
-
-Um log é NECESSÁRIO se:
-- Registra erro ou falha
-- Registra operação de escrita (POST, PUT, DELETE)
-- Tem contexto relevante para debug
-- Ajuda a rastrear fluxo de negócio
-- Registra evento significativo
-
-Responda APENAS com JSON válido no formato:
-{
-  "unnecessary_logs": [0, 2, 5, ...],
-  "reasoning": "breve explicação dos padrões identificados",
-  "severity": "low|medium|high|critical",
-  "top_issues": ["issue 1", "issue 2", "issue 3"]
-}
-
-Os números em "unnecessary_logs" são os índices (0-based) dos logs desnecessários."""
+        system_prompt = """Especialista em observabilidade. Classifique logs como NECESSÁRIO ou DESNECESSÁRIO.
+DESNECESSÁRIO: asset estático, health check GET 200, mensagem genérica, repetitivo sem valor.
+NECESSÁRIO: erro/falha, escrita (POST/PUT/DELETE), contexto de debug, evento significativo.
+Responda APENAS com JSON:
+{"unnecessary_logs":[0,2,5],"reasoning":"explicação","severity":"low|medium|high|critical","top_issues":["issue1"]}"""
 
         logs_data = []
         for i, log in enumerate(sample_logs):
             logs_data.append({
                 'index': i,
                 'level': log.get('level'),
-                'message': log.get('message', '')[:200],
+                'message': log.get('message', '')[:80],
                 'service': log.get('service'),
                 'http': {
                     'method': log.get('http', {}).get('method'),
-                    'path': log.get('http', {}).get('path', '')[:100],
+                    'path': log.get('http', {}).get('path', '')[:60],
                     'status_code': log.get('http', {}).get('status_code')
                 } if log.get('http') else None
             })
