@@ -151,7 +151,7 @@ class LLMClient:
             raise ValueError("GROQ_API_KEY não encontrada. Configure no arquivo .env")
 
         self.client = Groq(api_key=self.api_key)
-        self.model = model or os.getenv("GROQ_MODEL_NAME", "meta-llama/llama-4-scout-17b-16e-instruct")
+        self.model = model or os.getenv("GROQ_MODEL_NAME", "qwen/qwen3.8-27b")
 
     def _init_gemini(self, model: Optional[str] = None):
         """Inicializa cliente Google Gemini."""
