@@ -122,37 +122,28 @@ SEVERITY_EMOJI = {
 PROVIDER_LABELS = {
     "groq":     "Groq (Llama 3.3 70B) — Gratuito",
     "gemini":   "Gemini Flash — Gratuito",
-    "claude":   "Claude via Puter — Gratuito",
-    "chatgpt":  "ChatGPT via Puter — Gratuito",
+    "claude":   "Claude (Haiku via OpenRouter) — Gratuito",
+    "chatgpt":  "ChatGPT (GPT-4o Mini via GitHub) — Gratuito",
     "standard": "Standard (sem IA) — Gratuito",
 }
 
 PROVIDER_HELP = {
     "groq":     "Requer GROQ_API_KEY no arquivo .env",
     "gemini":   "Requer GOOGLE_API_KEY no arquivo .env",
-    "claude":   "Requer Puter Bridge rodando (./start_puter.sh)",
-    "chatgpt":  "Requer Puter Bridge rodando (./start_puter.sh)",
+    "claude":   "Requer OPENROUTER_API_KEY (gratuito em openrouter.ai) ou ANTHROPIC_API_KEY",
+    "chatgpt":  "Requer GITHUB_TOKEN (gratuito em github.com/settings/tokens) ou OPENAI_API_KEY",
     "standard": "Sempre disponível — análise baseada em regras",
 }
 
 
 def _check_provider_availability() -> Dict[str, bool]:
-    """Verifica quais provedores estão disponíveis com base nas env vars e Puter."""
+    """Verifica quais provedores estão disponíveis com base nas variáveis de ambiente."""
     available = {}
     available["groq"] = bool(os.getenv("GROQ_API_KEY"))
     available["gemini"] = bool(os.getenv("GOOGLE_API_KEY"))
     available["standard"] = True
-
-    puter_up = False
-    try:
-        import requests
-        r = requests.get("http://localhost:3000/health", timeout=3)
-        puter_up = r.status_code == 200 and r.json().get("status") == "ok"
-    except Exception:
-        pass
-
-    available["claude"] = puter_up
-    available["chatgpt"] = puter_up
+    available["claude"] = bool(os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENROUTER_API_KEY"))
+    available["chatgpt"] = bool(os.getenv("OPENAI_API_KEY") or os.getenv("GITHUB_TOKEN"))
     return available
 
 
@@ -210,12 +201,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
             llm_client = None
             if provider != "standard":
                 try:
-                    if provider == "claude":
-                        llm_client = LLMClient(provider="puter", model="claude-sonnet-4")
-                    elif provider == "chatgpt":
-                        llm_client = LLMClient(provider="puter", model="gpt-5.4-nano")
-                    else:
-                        llm_client = LLMClient(provider=provider)
+                    llm_client = LLMClient(provider=provider)
                 except Exception as e:
                     st.warning(f"⚠️ Não foi possível inicializar {provider}: {e}")
                     continue
@@ -511,8 +497,9 @@ def main():
         st.subheader("🤖 Provedores de IA")
         availability = _check_provider_availability()
 
-        puter_status = "🟢 Conectado" if availability["claude"] else "🔴 Desconectado"
-        st.caption(f"Puter Bridge: {puter_status}")
+        claude_status = "🟢 Disponível" if availability["claude"] else "🔴 Chave não configurada"
+        chatgpt_status = "🟢 Disponível" if availability["chatgpt"] else "🔴 Chave não configurada"
+        st.caption(f"Claude: {claude_status} · ChatGPT: {chatgpt_status}")
 
         selected: Dict[str, bool] = {}
         for provider in ["groq", "gemini", "claude", "chatgpt", "standard"]:
@@ -553,11 +540,16 @@ def main():
         if len(active_providers) == 0:
             st.warning("Selecione pelo menos um provedor.")
 
-        # Dica de Puter
-        if not availability["claude"]:
+        # Dica de configuração de Claude/ChatGPT
+        if not availability["claude"] or not availability["chatgpt"]:
             with st.expander("Como ativar Claude e ChatGPT?"):
-                st.code("./start_puter.sh", language="bash")
-                st.caption("Inicia o Puter Bridge que provê Claude e ChatGPT gratuitamente.")
+                st.markdown(
+                    "**Claude** — obtenha uma chave gratuita em [openrouter.ai](https://openrouter.ai) "
+                    "e defina `OPENROUTER_API_KEY` no `.env`.\n\n"
+                    "**ChatGPT** — gere um token em "
+                    "[github.com/settings/tokens](https://github.com/settings/tokens) "
+                    "e defina `GITHUB_TOKEN` no `.env`."
+                )
 
     # ── Área principal ────────────────────────────────────────────────────────
 

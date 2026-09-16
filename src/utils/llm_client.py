@@ -80,30 +80,65 @@ class LLMClient:
             raise ValueError(f"Provedor desconhecido: {provider}. Use 'claude', 'chatgpt', 'groq', 'gemini' ou 'puter'")
 
     def _init_claude(self, model: Optional[str] = None):
-        """Inicializa cliente Claude/Anthropic."""
-        if not ANTHROPIC_AVAILABLE:
-            raise ImportError("Módulo 'anthropic' não está instalado. "
-                            "Execute: pip install anthropic")
-
-        self.api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY não encontrada. Configure no arquivo .env")
-
-        self.client = Anthropic(api_key=self.api_key)
-        self.model = model or os.getenv("CLAUDE_MODEL_NAME", "claude-3-5-sonnet")
-
-    def _init_chatgpt(self, model: Optional[str] = None):
-        """Inicializa cliente ChatGPT/OpenAI."""
+        """
+        Inicializa cliente Claude.
+        Tenta na ordem: Anthropic API direta → OpenRouter (gratuito).
+        """
         if not OPENAI_AVAILABLE:
             raise ImportError("Módulo 'openai' não está instalado. "
                             "Execute: pip install openai")
 
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("OPENAI_API_KEY não encontrada. Configure no arquivo .env")
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        openrouter_key = os.getenv("OPENROUTER_API_KEY")
 
-        self.client = OpenAI(api_key=self.api_key)
-        self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
+        if anthropic_key and ANTHROPIC_AVAILABLE:
+            # API oficial paga
+            self.client = Anthropic(api_key=anthropic_key)
+            self.model = model or os.getenv("CLAUDE_MODEL_NAME", "claude-3-5-sonnet-20241022")
+            self._claude_backend = "anthropic"
+        elif openrouter_key:
+            # OpenRouter: proxy gratuito, usa interface OpenAI SDK
+            self.client = OpenAI(
+                api_key=openrouter_key,
+                base_url="https://openrouter.ai/api/v1",
+                default_headers={"HTTP-Referer": "https://github.com/Jegirlana/Excessive-Logs-Analyzer"},
+            )
+            self.model = model or os.getenv("CLAUDE_MODEL_NAME", "anthropic/claude-3.5-haiku")
+            self._claude_backend = "openrouter"
+        else:
+            raise ValueError(
+                "Nenhuma chave configurada para Claude. "
+                "Configure ANTHROPIC_API_KEY (pago) ou OPENROUTER_API_KEY (gratuito) no arquivo .env"
+            )
+
+    def _init_chatgpt(self, model: Optional[str] = None):
+        """
+        Inicializa cliente ChatGPT.
+        Tenta na ordem: OpenAI API direta → GitHub Models (gratuito).
+        """
+        if not OPENAI_AVAILABLE:
+            raise ImportError("Módulo 'openai' não está instalado. "
+                            "Execute: pip install openai")
+
+        openai_key = os.getenv("OPENAI_API_KEY")
+        github_token = os.getenv("GITHUB_TOKEN")
+
+        if openai_key:
+            # API oficial paga
+            self.client = OpenAI(api_key=openai_key)
+            self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
+        elif github_token:
+            # GitHub Models: tier gratuito com gpt-4o-mini
+            self.client = OpenAI(
+                api_key=github_token,
+                base_url="https://models.inference.ai.azure.com",
+            )
+            self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+        else:
+            raise ValueError(
+                "Nenhuma chave configurada para ChatGPT. "
+                "Configure OPENAI_API_KEY (pago) ou GITHUB_TOKEN (gratuito) no arquivo .env"
+            )
 
     def _init_groq(self, model: Optional[str] = None):
         """Inicializa cliente Groq."""
@@ -178,33 +213,38 @@ class LLMClient:
 
     def _analyze_claude_with_caching(self, system_prompt: str, user_prompt: str,
                                     cached_content: str = None) -> str:
-        """Análise com Claude usando prompt caching."""
-        messages = [{"role": "user", "content": user_prompt}]
-
-        # Configura system com cache se houver conteúdo a cachear
-        if cached_content:
-            system = [
-                {
-                    "type": "text",
-                    "text": system_prompt
-                },
-                {
-                    "type": "text",
-                    "text": cached_content,
-                    "cache_control": {"type": "ephemeral"}
-                }
-            ]
+        """Análise com Claude — Anthropic SDK (com caching) ou OpenRouter (interface OpenAI)."""
+        if getattr(self, "_claude_backend", "anthropic") == "anthropic":
+            messages = [{"role": "user", "content": user_prompt}]
+            if cached_content:
+                system = [
+                    {"type": "text", "text": system_prompt},
+                    {"type": "text", "text": cached_content, "cache_control": {"type": "ephemeral"}},
+                ]
+            else:
+                system = system_prompt
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=4096,
+                system=system,
+                messages=messages,
+            )
+            return response.content[0].text
         else:
-            system = system_prompt
-
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=4096,
-            system=system,
-            messages=messages
-        )
-
-        return response.content[0].text
+            # OpenRouter usa interface OpenAI
+            full_system = system_prompt
+            if cached_content:
+                full_system = f"{system_prompt}\n\nContexto adicional:\n{cached_content}"
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": full_system},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=4096,
+                temperature=0.7,
+            )
+            return response.choices[0].message.content
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
                         cached_content: str = None) -> str:
@@ -290,12 +330,21 @@ class LLMClient:
             Resposta do modelo
         """
         if self.provider == "claude":
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.content[0].text
+            if getattr(self, "_claude_backend", "anthropic") == "anthropic":
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.content[0].text
+            else:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=4096,
+                    temperature=0.7,
+                )
+                return response.choices[0].message.content
 
         elif self.provider == "chatgpt":
             response = self.client.chat.completions.create(
