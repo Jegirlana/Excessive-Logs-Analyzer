@@ -178,66 +178,70 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
     processor = LogProcessor()
 
     with status_placeholder.status("Carregando logs...", expanded=True) as status:
-        st.write("📂 Carregando arquivo de logs...")
-        logs = processor.load_logs(log_file_path)
-        st.write(f"✓ {len(logs)} logs carregados")
+        try:
+            st.write("📂 Carregando arquivo de logs...")
+            logs = processor.load_logs(log_file_path)
+            st.write(f"✓ {len(logs)} logs carregados")
 
-        st.write("📊 Calculando estatísticas...")
-        level_dist      = processor.get_level_distribution(logs)
-        service_dist    = processor.get_service_distribution(logs)
-        service_levels  = processor.group_by_service_and_level(logs)
-        duplicates      = processor.find_duplicate_logs(logs)
-        log_rate        = processor.calculate_log_rate(logs)
-        error_types     = processor.get_error_types(logs)
-        http_status_dist = processor.get_http_status_distribution(logs)
-        tags_dist       = processor.get_tags_distribution(logs)
-        st.write("✓ Estatísticas processadas")
+            st.write("📊 Calculando estatísticas...")
+            level_dist      = processor.get_level_distribution(logs)
+            service_dist    = processor.get_service_distribution(logs)
+            service_levels  = processor.group_by_service_and_level(logs)
+            duplicates      = processor.find_duplicate_logs(logs)
+            log_rate        = processor.calculate_log_rate(logs)
+            error_types     = processor.get_error_types(logs)
+            http_status_dist = processor.get_http_status_distribution(logs)
+            tags_dist       = processor.get_tags_distribution(logs)
+            st.write("✓ Estatísticas processadas")
 
-        all_results: Dict[str, Any] = {}
+            all_results: Dict[str, Any] = {}
 
-        for provider in selected_providers:
-            st.write(f"🤖 Analisando com **{provider.upper()}**...")
+            for provider in selected_providers:
+                st.write(f"🤖 Analisando com **{provider.upper()}**...")
 
-            llm_client = None
-            if provider != "standard":
+                llm_client = None
+                if provider != "standard":
+                    try:
+                        llm_client = LLMClient(provider=provider)
+                    except Exception as e:
+                        st.warning(f"⚠️ Não foi possível inicializar {provider}: {e}")
+                        continue
+
+                level_analyzer     = LogLevelAnalyzer(llm_client)
+                unnecessary_detect = UnnecessaryLogsDetector(llm_client)
+                sampling_recomm    = SamplingRecommender(llm_client)
+
                 try:
-                    llm_client = LLMClient(provider=provider)
+                    level_analysis      = level_analyzer.analyze(logs, service_levels)
+                    unnecessary_analysis = unnecessary_detect.analyze(logs, duplicates)
+                    sampling_analysis   = sampling_recomm.analyze(logs, log_rate, service_dist, duplicates)
                 except Exception as e:
-                    st.warning(f"⚠️ Não foi possível inicializar {provider}: {e}")
+                    st.warning(f"⚠️ Erro na análise com {provider}: {e}")
                     continue
 
-            level_analyzer     = LogLevelAnalyzer(llm_client)
-            unnecessary_detect = UnnecessaryLogsDetector(llm_client)
-            sampling_recomm    = SamplingRecommender(llm_client)
+                overall = _calculate_assessment(level_analysis, unnecessary_analysis, sampling_analysis)
 
-            try:
-                level_analysis      = level_analyzer.analyze(logs, service_levels)
-                unnecessary_analysis = unnecessary_detect.analyze(logs, duplicates)
-                sampling_analysis   = sampling_recomm.analyze(logs, log_rate, service_dist, duplicates)
-            except Exception as e:
-                st.warning(f"⚠️ Erro na análise com {provider}: {e}")
-                continue
+                all_results[provider] = {
+                    "metadata": {
+                        "analysis_timestamp": datetime.now().isoformat(),
+                        "log_file": log_file_path,
+                        "analysis_mode": provider,
+                        "llm_provider": llm_client.provider if llm_client else None,
+                        "model": llm_client.model if llm_client else None,
+                    },
+                    "analyses": {
+                        "log_levels": level_analysis,
+                        "unnecessary_logs": unnecessary_analysis,
+                        "sampling_recommendations": sampling_analysis,
+                    },
+                    "overall_assessment": overall,
+                }
+                st.write(f"✓ {provider.upper()} concluído — Pontuação de Saúde: {overall['health_score']}/100")
 
-            overall = _calculate_assessment(level_analysis, unnecessary_analysis, sampling_analysis)
-
-            all_results[provider] = {
-                "metadata": {
-                    "analysis_timestamp": datetime.now().isoformat(),
-                    "log_file": log_file_path,
-                    "analysis_mode": provider,
-                    "llm_provider": llm_client.provider if llm_client else None,
-                    "model": llm_client.model if llm_client else None,
-                },
-                "analyses": {
-                    "log_levels": level_analysis,
-                    "unnecessary_logs": unnecessary_analysis,
-                    "sampling_recommendations": sampling_analysis,
-                },
-                "overall_assessment": overall,
-            }
-            st.write(f"✓ {provider.upper()} concluído — Pontuação de Saúde: {overall['health_score']}/100")
-
-        status.update(label="✅ Análise concluída!", state="complete", expanded=False)
+            status.update(label="✅ Análise concluída!", state="complete", expanded=False)
+        except Exception as e:
+            status.update(label="❌ Erro durante a análise", state="error", expanded=True)
+            raise
 
     return {
         "metadata": {

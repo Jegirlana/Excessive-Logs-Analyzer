@@ -228,6 +228,7 @@ class LLMClient:
                 max_tokens=4096,
                 system=system,
                 messages=messages,
+                timeout=60,
             )
             return response.content[0].text
         else:
@@ -243,13 +244,13 @@ class LLMClient:
                 ],
                 max_tokens=4096,
                 temperature=0.7,
+                timeout=60,
             )
             return response.choices[0].message.content
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
                         cached_content: str = None) -> str:
         """Análise com ChatGPT/OpenAI."""
-        # Combina system prompt com cached content se fornecido
         full_system = system_prompt
         if cached_content:
             full_system = f"{system_prompt}\n\nContexto adicional:\n{cached_content}"
@@ -263,7 +264,8 @@ class LLMClient:
             model=self.model,
             messages=messages,
             max_tokens=4096,
-            temperature=0.7
+            temperature=0.7,
+            timeout=60,
         )
 
         return response.choices[0].message.content
@@ -271,7 +273,6 @@ class LLMClient:
     def _analyze_groq(self, system_prompt: str, user_prompt: str,
                      cached_content: str = None) -> str:
         """Análise com Groq (API compatível com OpenAI)."""
-        # Combina system prompt com cached content se fornecido
         full_system = system_prompt
         if cached_content:
             full_system = f"{system_prompt}\n\nContexto adicional:\n{cached_content}"
@@ -285,7 +286,8 @@ class LLMClient:
             model=self.model,
             messages=messages,
             max_tokens=4096,
-            temperature=0.7
+            temperature=0.7,
+            timeout=60,
         )
 
         return response.choices[0].message.content
@@ -293,7 +295,6 @@ class LLMClient:
     def _analyze_gemini(self, system_prompt: str, user_prompt: str,
                        cached_content: str = None) -> str:
         """Análise com Google Gemini."""
-        # Gemini combina system e user prompt em um único texto
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
         if cached_content:
             full_prompt = f"{system_prompt}\n\nContexto adicional:\n{cached_content}\n\n{user_prompt}"
@@ -303,7 +304,8 @@ class LLMClient:
             generation_config={
                 "temperature": 0.7,
                 "max_output_tokens": 4096,
-            }
+            },
+            request_options={"timeout": 60},
         )
 
         return response.text
@@ -335,6 +337,7 @@ class LLMClient:
                     model=self.model,
                     max_tokens=4096,
                     messages=[{"role": "user", "content": prompt}],
+                    timeout=60,
                 )
                 return response.content[0].text
             else:
@@ -343,6 +346,7 @@ class LLMClient:
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=4096,
                     temperature=0.7,
+                    timeout=60,
                 )
                 return response.choices[0].message.content
 
@@ -351,7 +355,8 @@ class LLMClient:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=4096,
-                temperature=0.7
+                temperature=0.7,
+                timeout=60,
             )
             return response.choices[0].message.content
 
@@ -360,7 +365,8 @@ class LLMClient:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=4096,
-                temperature=0.7
+                temperature=0.7,
+                timeout=60,
             )
             return response.choices[0].message.content
 
@@ -370,7 +376,8 @@ class LLMClient:
                 generation_config={
                     "temperature": 0.7,
                     "max_output_tokens": 4096,
-                }
+                },
+                request_options={"timeout": 60},
             )
             return response.text
 
