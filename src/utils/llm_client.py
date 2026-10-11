@@ -289,11 +289,13 @@ class LLMClient:
                     temperature=0.7,
                     timeout=90,
                 )
+                if isinstance(response, str) or not hasattr(response, "choices"):
+                    raise ValueError(f"Resposta inesperada ({type(response).__name__}): {str(response)[:200]!r}")
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = e
                 err_str = str(e)
-                if "404" in err_str or "No endpoints" in err_str or "503" in err_str or "Connection" in err_str:
+                if any(k in err_str for k in ("404", "No endpoints", "503", "Connection", "Resposta inesperada")):
                     continue
                 raise
         raise last_error
