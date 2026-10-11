@@ -172,7 +172,7 @@ class LLMClient:
             raise ValueError("GOOGLE_API_KEY não encontrada. Configure no arquivo .env")
 
         genai.configure(api_key=self.api_key)
-        self.model = model or os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+        self.model = model or os.getenv("GEMINI_MODEL_NAME", "models/gemini-2.5-flash")
         self.client = genai.GenerativeModel(self.model)
 
     def _init_puter(self, model: Optional[str] = None):
@@ -290,14 +290,18 @@ class LLMClient:
                     timeout=90,
                 )
                 if isinstance(response, str) or not hasattr(response, "choices"):
-                    raise ValueError(f"Resposta inesperada ({type(response).__name__}): {str(response)[:200]!r}")
+                    # Servidor retornou texto puro: token inválido/expirado
+                    raise ValueError(
+                        "GitHub Models retornou resposta inválida. "
+                        "Verifique se o GITHUB_TOKEN está válido e não expirado."
+                    )
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = e
                 err_str = str(e)
-                if any(k in err_str for k in ("404", "No endpoints", "503", "Connection", "Resposta inesperada")):
+                if any(k in err_str for k in ("404", "No endpoints", "503", "Connection error")):
                     continue
-                raise
+                raise  # token inválido e outros erros: propaga imediatamente
         raise last_error
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
@@ -344,7 +348,7 @@ class LLMClient:
             request_options = {"timeout": 120}
 
         generation_config = {"temperature": 0.7, "max_output_tokens": 4096}
-        fallback_models = ["gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest"]
+        fallback_models = ["models/gemini-2.5-flash", "models/gemini-flash-latest", "models/gemini-pro-latest"]
         models_to_try = [self.model] + [m for m in fallback_models if m != self.model]
 
         last_error = None
