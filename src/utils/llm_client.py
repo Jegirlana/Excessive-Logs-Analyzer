@@ -23,6 +23,16 @@ except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None
 
+# Azure AI Inference (GitHub Models)
+try:
+    from azure.ai.inference import ChatCompletionsClient
+    from azure.ai.inference.models import SystemMessage, UserMessage
+    from azure.core.credentials import AzureKeyCredential
+    AZURE_INFERENCE_AVAILABLE = True
+except ImportError:
+    AZURE_INFERENCE_AVAILABLE = False
+    ChatCompletionsClient = None
+
 # Groq
 try:
     from groq import Groq
@@ -135,12 +145,16 @@ class LLMClient:
             self.client = OpenAI(api_key=openai_key)
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
         elif github_token:
-            # GitHub Models: tier gratuito
-            self.client = OpenAI(
-                api_key=github_token,
-                base_url="https://models.github.ai/inference/v1",
+            # GitHub Models via SDK oficial azure-ai-inference
+            if not AZURE_INFERENCE_AVAILABLE:
+                raise ImportError("Módulo 'azure-ai-inference' não está instalado. "
+                                  "Execute: pip install azure-ai-inference")
+            self.client = ChatCompletionsClient(
+                endpoint="https://models.github.ai/inference",
+                credential=AzureKeyCredential(github_token),
             )
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
+            self._chatgpt_backend = "github"
             self._chatgpt_fallbacks = ["openai/gpt-4o-mini", "openai/gpt-4o", "mistral-ai/mistral-small"]
         else:
             raise ValueError(
@@ -275,33 +289,50 @@ class LLMClient:
             return self._openrouter_call(messages)
 
     def _chatgpt_call(self, messages: list) -> str:
-        """Chama ChatGPT/GitHub Models com fallback sequencial de modelos."""
+        """Chama ChatGPT (OpenAI API ou GitHub Models) com fallback sequencial."""
         models_to_try = [self.model] + [
             m for m in getattr(self, "_chatgpt_fallbacks", []) if m != self.model
         ]
         last_error = None
         for model_name in models_to_try:
             try:
-                response = self.client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    max_tokens=4096,
-                    temperature=0.7,
-                    timeout=90,
-                )
-                if isinstance(response, str) or not hasattr(response, "choices"):
-                    # Servidor retornou texto puro: token inválido/expirado
-                    raise ValueError(
-                        "GitHub Models retornou resposta inválida. "
-                        "Verifique se o GITHUB_TOKEN está válido e não expirado."
+                if getattr(self, "_chatgpt_backend", "openai") == "github":
+                    # SDK azure-ai-inference (GitHub Models)
+                    azure_messages = []
+                    for msg in messages:
+                        if msg["role"] == "system":
+                            azure_messages.append(SystemMessage(msg["content"]))
+                        else:
+                            azure_messages.append(UserMessage(msg["content"]))
+                    response = self.client.complete(
+                        model=model_name,
+                        messages=azure_messages,
+                        max_tokens=4096,
+                        temperature=0.7,
+                    )
+                else:
+                    # SDK openai (OpenAI API oficial)
+                    response = self.client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=4096,
+                        temperature=0.7,
+                        timeout=90,
                     )
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = e
                 err_str = str(e)
+                err_type = type(e).__name__
                 if any(k in err_str for k in ("404", "No endpoints", "503", "Connection error")):
                     continue
-                raise  # token inválido e outros erros: propaga imediatamente
+                if err_type == "JSONDecodeError" or "Expecting value" in err_str:
+                    raise ValueError(
+                        "GitHub Models retornou resposta inválida (texto puro). "
+                        "Verifique se o GITHUB_TOKEN é um PAT válido com acesso a GitHub Models "
+                        "(github.com/settings/tokens → Models permission)."
+                    )
+                raise
         raise last_error
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
