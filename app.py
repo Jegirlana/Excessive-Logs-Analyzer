@@ -120,18 +120,18 @@ SEVERITY_EMOJI = {
 }
 
 PROVIDER_LABELS = {
-    "groq":     "Groq (Llama 3.3 70B) — Gratuito",
-    "gemini":   "Gemini Flash (Google AI Studio) — Gratuito",
-    "claude":   "Claude (via OpenRouter) — Gratuito com limite / Pago",
-    "chatgpt":  "ChatGPT (GPT-4o Mini via GitHub Models) — Gratuito",
-    "standard": "Standard (sem IA) — Gratuito",
+    "groq":     "Groq — Llama 3.3 70B (Gratuito)",
+    "gemini":   "Gemini Flash — Google AI Studio (Gratuito)",
+    "claude":   "Claude — OpenRouter (Gratuito com limite)",
+    "chatgpt":  "ChatGPT — GPT-4o Mini via GitHub Models (Gratuito)",
+    "standard": "Standard — sem IA (Gratuito)",
 }
 
 PROVIDER_HELP = {
-    "groq":     "Gratuito — requer GROQ_API_KEY (console.groq.com)",
-    "gemini":   "Gratuito — requer GOOGLE_API_KEY (aistudio.google.com). Cota mensal limitada.",
-    "claude":   "OpenRouter tem modelos gratuitos com limite diário. Requer OPENROUTER_API_KEY (openrouter.ai)",
-    "chatgpt":  "Gratuito localmente via 'gh auth login' (github.com/cli/cli). Em produção requer OPENAI_API_KEY",
+    "groq":     "Gratuito. Crie uma chave em console.groq.com e defina GROQ_API_KEY no .env",
+    "gemini":   "Gratuito com cota mensal. Crie uma chave em aistudio.google.com e defina GOOGLE_API_KEY no .env",
+    "claude":   "Gratuito com limite diário. Crie uma chave em openrouter.ai e defina OPENROUTER_API_KEY no .env",
+    "chatgpt":  "Gratuito. Instale o GitHub CLI (cli.github.com) e execute 'gh auth login' no terminal",
     "standard": "Sempre disponível — análise baseada em regras, sem IA",
 }
 
@@ -509,7 +509,7 @@ def main():
         availability = _check_provider_availability()
 
         claude_status = "🟢 Disponível" if availability["claude"] else "🔴 Chave não configurada"
-        chatgpt_status = "🟢 Disponível (💳 Pago)" if availability["chatgpt"] else "🔴 Chave não configurada"
+        chatgpt_status = "🟢 Disponível" if availability["chatgpt"] else "🔴 gh auth login necessário"
         st.caption(f"Claude: {claude_status} · ChatGPT: {chatgpt_status}")
 
         selected: Dict[str, bool] = {}
@@ -552,17 +552,19 @@ def main():
             st.warning("Selecione pelo menos um provedor.")
 
         # Dica de configuração
-        if not availability["claude"] or not availability["chatgpt"]:
+        missing = [p for p, ok in availability.items() if not ok and p != "standard"]
+        if missing:
             with st.expander("Como configurar os provedores?"):
                 st.markdown(
-                    "**Groq** 🆓 — crie uma chave gratuita em [console.groq.com](https://console.groq.com) "
-                    "e defina `GROQ_API_KEY`.\n\n"
-                    "**Gemini** 🆓 — crie uma chave gratuita em [aistudio.google.com](https://aistudio.google.com) "
-                    "e defina `GOOGLE_API_KEY`. Cota mensal limitada.\n\n"
-                    "**Claude** 🆓/💳 — crie uma conta em [openrouter.ai](https://openrouter.ai) "
-                    "e defina `OPENROUTER_API_KEY`. Modelos gratuitos disponíveis com limite diário.\n\n"
-                    "**ChatGPT** 🆓 — instale o [GitHub CLI](https://cli.github.com) e execute "
-                    "`gh auth login` no terminal. Funciona localmente sem custo via GitHub Models."
+                    "Todos os provedores de IA são **gratuitos** para uso local:\n\n"
+                    "**Groq** — crie uma chave em [console.groq.com](https://console.groq.com) "
+                    "e defina `GROQ_API_KEY` no `.env`.\n\n"
+                    "**Gemini** — crie uma chave em [aistudio.google.com](https://aistudio.google.com) "
+                    "e defina `GOOGLE_API_KEY` no `.env`.\n\n"
+                    "**Claude** — crie uma chave em [openrouter.ai](https://openrouter.ai) "
+                    "e defina `OPENROUTER_API_KEY` no `.env`.\n\n"
+                    "**ChatGPT** — instale o [GitHub CLI](https://cli.github.com) "
+                    "e execute `gh auth login` no terminal."
                 )
 
     # ── Área principal ────────────────────────────────────────────────────────
