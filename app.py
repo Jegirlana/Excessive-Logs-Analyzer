@@ -122,7 +122,7 @@ SEVERITY_EMOJI = {
 PROVIDER_LABELS = {
     "groq":     "Groq (Llama 3.3 70B) — Gratuito",
     "gemini":   "Gemini Flash — Gratuito",
-    "claude":   "Claude (Haiku via OpenRouter) — Gratuito",
+    "claude":   "Claude (Haiku 4.5 via OpenRouter) — Pago",
     "chatgpt":  "ChatGPT (GPT-4o Mini via GitHub) — Gratuito",
     "standard": "Standard (sem IA) — Gratuito",
 }
@@ -130,7 +130,7 @@ PROVIDER_LABELS = {
 PROVIDER_HELP = {
     "groq":     "Requer GROQ_API_KEY no arquivo .env",
     "gemini":   "Requer GOOGLE_API_KEY no arquivo .env",
-    "claude":   "Requer OPENROUTER_API_KEY (gratuito em openrouter.ai) ou ANTHROPIC_API_KEY",
+    "claude":   "Requer OPENROUTER_API_KEY (openrouter.ai) ou ANTHROPIC_API_KEY — modelos pagos",
     "chatgpt":  "Requer GITHUB_TOKEN (gratuito em github.com/settings/tokens) ou OPENAI_API_KEY",
     "standard": "Sempre disponível — análise baseada em regras",
 }

@@ -98,14 +98,20 @@ class LLMClient:
             self.model = model or os.getenv("CLAUDE_MODEL_NAME", "claude-3-5-sonnet-20241022")
             self._claude_backend = "anthropic"
         elif openrouter_key:
-            # OpenRouter: proxy gratuito, usa interface OpenAI SDK
+            # OpenRouter via interface OpenAI SDK
             self.client = OpenAI(
                 api_key=openrouter_key,
                 base_url="https://openrouter.ai/api/v1",
                 default_headers={"HTTP-Referer": "https://github.com/Jegirlana/Excessive-Logs-Analyzer"},
             )
-            self.model = model or os.getenv("CLAUDE_MODEL_NAME", "anthropic/claude-3.5-haiku")
+            self.model = model or os.getenv("CLAUDE_MODEL_NAME", "anthropic/claude-haiku-4.5")
             self._claude_backend = "openrouter"
+            # Modelos de fallback em ordem crescente de custo
+            self._openrouter_fallbacks = [
+                "anthropic/claude-haiku-4.5",
+                "anthropic/claude-haiku-5.5",
+                "anthropic/claude-sonnet-4.5",
+            ]
         else:
             raise ValueError(
                 "Nenhuma chave configurada para Claude. "
@@ -212,6 +218,30 @@ class LLMClient:
         elif self.provider == "puter":
             return self._analyze_puter(system_prompt, user_prompt, cached_content)
 
+    def _openrouter_call(self, messages: list) -> str:
+        """Chama OpenRouter com fallback sequencial de modelos em caso de 404/503."""
+        models_to_try = [self.model] + [
+            m for m in getattr(self, "_openrouter_fallbacks", []) if m != self.model
+        ]
+        last_error = None
+        for model_name in models_to_try:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    max_tokens=4096,
+                    temperature=0.7,
+                    timeout=90,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                if "404" in err_str or "No endpoints" in err_str or "503" in err_str:
+                    continue  # tenta próximo modelo
+                raise  # outro erro — propaga imediatamente
+        raise last_error
+
     def _analyze_claude_with_caching(self, system_prompt: str, user_prompt: str,
                                     cached_content: str = None) -> str:
         """Análise com Claude — Anthropic SDK (com caching) ou OpenRouter (interface OpenAI)."""
@@ -237,17 +267,11 @@ class LLMClient:
             full_system = system_prompt
             if cached_content:
                 full_system = f"{system_prompt}\n\nContexto adicional:\n{cached_content}"
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": full_system},
-                    {"role": "user", "content": user_prompt},
-                ],
-                max_tokens=4096,
-                temperature=0.7,
-                timeout=60,
-            )
-            return response.choices[0].message.content
+            messages = [
+                {"role": "system", "content": full_system},
+                {"role": "user", "content": user_prompt},
+            ]
+            return self._openrouter_call(messages)
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
                         cached_content: str = None) -> str:
@@ -366,14 +390,7 @@ class LLMClient:
                 )
                 return response.content[0].text
             else:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=4096,
-                    temperature=0.7,
-                    timeout=60,
-                )
-                return response.choices[0].message.content
+                return self._openrouter_call([{"role": "user", "content": prompt}])
 
         elif self.provider == "chatgpt":
             response = self.client.chat.completions.create(
