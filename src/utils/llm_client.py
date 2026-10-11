@@ -138,7 +138,7 @@ class LLMClient:
             # GitHub Models: tier gratuito
             self.client = OpenAI(
                 api_key=github_token,
-                base_url="https://models.github.ai/inference",
+                base_url="https://models.github.ai/inference/v1",
             )
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
             self._chatgpt_fallbacks = ["openai/gpt-4o-mini", "openai/gpt-4o", "mistral-ai/mistral-small"]
@@ -172,7 +172,7 @@ class LLMClient:
             raise ValueError("GOOGLE_API_KEY não encontrada. Configure no arquivo .env")
 
         genai.configure(api_key=self.api_key)
-        self.model = model or os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash-latest")
+        self.model = model or os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
         self.client = genai.GenerativeModel(self.model)
 
     def _init_puter(self, model: Optional[str] = None):
@@ -342,7 +342,7 @@ class LLMClient:
             request_options = {"timeout": 120}
 
         generation_config = {"temperature": 0.7, "max_output_tokens": 4096}
-        fallback_models = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest", "gemini-2.0-flash"]
+        fallback_models = ["gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest"]
         models_to_try = [self.model] + [m for m in fallback_models if m != self.model]
 
         last_error = None
