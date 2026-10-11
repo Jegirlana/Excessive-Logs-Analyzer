@@ -164,7 +164,7 @@ class LLMClient:
             raise ValueError("GOOGLE_API_KEY não encontrada. Configure no arquivo .env")
 
         genai.configure(api_key=self.api_key)
-        self.model = model or os.getenv("GEMINI_MODEL_NAME", "gemini-flash-latest")
+        self.model = model or os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash-latest")
         self.client = genai.GenerativeModel(self.model)
 
     def _init_puter(self, model: Optional[str] = None):
@@ -299,13 +299,18 @@ class LLMClient:
         if cached_content:
             full_prompt = f"{system_prompt}\n\nContexto adicional:\n{cached_content}\n\n{user_prompt}"
 
+        try:
+            request_options = genai.types.RequestOptions(timeout=120)
+        except AttributeError:
+            request_options = {"timeout": 120}
+
         response = self.client.generate_content(
             full_prompt,
             generation_config={
                 "temperature": 0.7,
                 "max_output_tokens": 4096,
             },
-            request_options={"timeout": 60},
+            request_options=request_options,
         )
 
         return response.text
@@ -371,13 +376,17 @@ class LLMClient:
             return response.choices[0].message.content
 
         elif self.provider == "gemini":
+            try:
+                request_options = genai.types.RequestOptions(timeout=120)
+            except AttributeError:
+                request_options = {"timeout": 120}
             response = self.client.generate_content(
                 prompt,
                 generation_config={
                     "temperature": 0.7,
                     "max_output_tokens": 4096,
                 },
-                request_options={"timeout": 60},
+                request_options=request_options,
             )
             return response.text
 
