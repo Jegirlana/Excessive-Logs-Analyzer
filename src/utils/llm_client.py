@@ -4,6 +4,7 @@ Utiliza prompt caching para otimizar custos em análises repetitivas.
 """
 
 import os
+import time
 from typing import Optional
 
 # Anthropic (Claude)
@@ -292,6 +293,39 @@ class LLMClient:
 
         return response.choices[0].message.content
 
+    def _gemini_generate(self, prompt: str) -> str:
+        """Chama Gemini com retry automático em caso de 503 e fallback de modelo."""
+        try:
+            request_options = genai.types.RequestOptions(timeout=120)
+        except AttributeError:
+            request_options = {"timeout": 120}
+
+        generation_config = {"temperature": 0.7, "max_output_tokens": 4096}
+        fallback_models = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest", "gemini-2.0-flash"]
+        models_to_try = [self.model] + [m for m in fallback_models if m != self.model]
+
+        last_error = None
+        for model_name in models_to_try:
+            client = genai.GenerativeModel(model_name)
+            for attempt in range(3):
+                try:
+                    response = client.generate_content(
+                        prompt,
+                        generation_config=generation_config,
+                        request_options=request_options,
+                    )
+                    return response.text
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e)
+                    if "503" in err_str or "high demand" in err_str or "overloaded" in err_str.lower():
+                        wait = 10 * (attempt + 1)
+                        time.sleep(wait)
+                        continue
+                    break  # erro diferente de 503 — tenta próximo modelo
+
+        raise last_error
+
     def _analyze_gemini(self, system_prompt: str, user_prompt: str,
                        cached_content: str = None) -> str:
         """Análise com Google Gemini."""
@@ -299,21 +333,7 @@ class LLMClient:
         if cached_content:
             full_prompt = f"{system_prompt}\n\nContexto adicional:\n{cached_content}\n\n{user_prompt}"
 
-        try:
-            request_options = genai.types.RequestOptions(timeout=120)
-        except AttributeError:
-            request_options = {"timeout": 120}
-
-        response = self.client.generate_content(
-            full_prompt,
-            generation_config={
-                "temperature": 0.7,
-                "max_output_tokens": 4096,
-            },
-            request_options=request_options,
-        )
-
-        return response.text
+        return self._gemini_generate(full_prompt)
 
     def _analyze_puter(self, system_prompt: str, user_prompt: str,
                       cached_content: str = None) -> str:
@@ -376,19 +396,7 @@ class LLMClient:
             return response.choices[0].message.content
 
         elif self.provider == "gemini":
-            try:
-                request_options = genai.types.RequestOptions(timeout=120)
-            except AttributeError:
-                request_options = {"timeout": 120}
-            response = self.client.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.7,
-                    "max_output_tokens": 4096,
-                },
-                request_options=request_options,
-            )
-            return response.text
+            return self._gemini_generate(prompt)
 
         elif self.provider == "puter":
             response = self.client.chat(
