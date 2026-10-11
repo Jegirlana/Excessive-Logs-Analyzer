@@ -289,11 +289,12 @@ class LLMClient:
             "temperature": 0.7,
         })
         r = httpx.post(url, content=body, headers=headers, timeout=90)
-        if r.headers.get("content-type", "").startswith("text/plain") or not r.text.strip().startswith("{"):
+        ct = r.headers.get("content-type", "")
+        body_preview = r.text[:200].strip()
+        if ct.startswith("text/plain") or not body_preview.startswith("{"):
             raise ValueError(
-                "GitHub Models retornou resposta inválida. "
-                "Verifique se o GITHUB_TOKEN é um PAT válido com a permissão 'Models' "
-                "em github.com/settings/tokens."
+                f"GitHub Models: HTTP {r.status_code} | content-type: {ct!r} | "
+                f"body: {body_preview!r}"
             )
         r.raise_for_status()
         data = r.json()
