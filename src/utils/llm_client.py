@@ -120,21 +120,53 @@ class LLMClient:
             )
 
     def _init_chatgpt(self, model: Optional[str] = None):
-        """Inicializa cliente ChatGPT via OpenAI API."""
+        """
+        Inicializa cliente ChatGPT.
+        Ordem: OPENAI_API_KEY (pago) → GitHub Models via gh auth (gratuito, só local).
+        """
         if not OPENAI_AVAILABLE:
             raise ImportError("Módulo 'openai' não está instalado. "
                             "Execute: pip install openai")
 
         openai_key = os.getenv("OPENAI_API_KEY")
-        if not openai_key:
-            raise ValueError(
-                "OPENAI_API_KEY não encontrada. "
-                "Configure a chave em platform.openai.com e adicione ao arquivo .env"
-            )
+        if openai_key:
+            self.client = OpenAI(api_key=openai_key)
+            self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+            self._chatgpt_backend = "openai"
+            return
 
-        self.client = OpenAI(api_key=openai_key)
-        self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
-        self._chatgpt_backend = "openai"
+        # Tenta token do gh CLI (funciona localmente após 'gh auth login')
+        github_token = self._get_gh_cli_token()
+        if github_token:
+            self.client = OpenAI(
+                base_url="https://models.github.ai/inference",
+                api_key=github_token,
+            )
+            self.model = model or os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
+            self._chatgpt_backend = "github"
+            return
+
+        raise ValueError(
+            "Nenhuma chave configurada para ChatGPT. "
+            "Execute 'gh auth login' para usar GitHub Models gratuitamente (local), "
+            "ou configure OPENAI_API_KEY no arquivo .env"
+        )
+
+    @staticmethod
+    def _get_gh_cli_token() -> Optional[str]:
+        """Lê o token OAuth do gh CLI em ~/.config/gh/hosts.yml."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True, text=True, timeout=5,
+            )
+            token = result.stdout.strip()
+            if token and not result.returncode:
+                return token
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        return None
 
     def _init_groq(self, model: Optional[str] = None):
         """Inicializa cliente Groq."""
@@ -263,7 +295,7 @@ class LLMClient:
             return self._openrouter_call(messages)
 
     def _chatgpt_call(self, messages: list) -> str:
-        """Chama ChatGPT via OpenAI API ou Groq (fallback gratuito)."""
+        """Chama ChatGPT via OpenAI API ou GitHub Models (local)."""
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -271,6 +303,11 @@ class LLMClient:
             temperature=0.7,
             timeout=90,
         )
+        if isinstance(response, str):
+            raise ValueError(
+                "GitHub Models retornou resposta inválida. "
+                "Execute 'gh auth login' no terminal e tente novamente."
+            )
         return response.choices[0].message.content
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,

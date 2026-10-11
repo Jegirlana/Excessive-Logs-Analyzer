@@ -123,7 +123,7 @@ PROVIDER_LABELS = {
     "groq":     "Groq (Llama 3.3 70B) — Gratuito",
     "gemini":   "Gemini Flash (Google AI Studio) — Gratuito",
     "claude":   "Claude (via OpenRouter) — Gratuito com limite / Pago",
-    "chatgpt":  "ChatGPT (GPT-4o Mini via OpenAI) — Pago",
+    "chatgpt":  "ChatGPT (GPT-4o Mini via GitHub Models) — Gratuito",
     "standard": "Standard (sem IA) — Gratuito",
 }
 
@@ -131,7 +131,7 @@ PROVIDER_HELP = {
     "groq":     "Gratuito — requer GROQ_API_KEY (console.groq.com)",
     "gemini":   "Gratuito — requer GOOGLE_API_KEY (aistudio.google.com). Cota mensal limitada.",
     "claude":   "OpenRouter tem modelos gratuitos com limite diário. Requer OPENROUTER_API_KEY (openrouter.ai)",
-    "chatgpt":  "Pago — requer OPENAI_API_KEY com créditos em platform.openai.com",
+    "chatgpt":  "Gratuito localmente via 'gh auth login' (github.com/cli/cli). Em produção requer OPENAI_API_KEY",
     "standard": "Sempre disponível — análise baseada em regras, sem IA",
 }
 
@@ -143,7 +143,14 @@ def _check_provider_availability() -> Dict[str, bool]:
     available["gemini"] = bool(os.getenv("GOOGLE_API_KEY"))
     available["standard"] = True
     available["claude"] = bool(os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENROUTER_API_KEY"))
-    available["chatgpt"] = bool(os.getenv("OPENAI_API_KEY"))
+    gh_token = None
+    try:
+        import subprocess
+        r = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=5)
+        gh_token = r.stdout.strip() if not r.returncode else None
+    except Exception:
+        pass
+    available["chatgpt"] = bool(os.getenv("OPENAI_API_KEY") or gh_token)
     return available
 
 
@@ -554,8 +561,8 @@ def main():
                     "e defina `GOOGLE_API_KEY`. Cota mensal limitada.\n\n"
                     "**Claude** 🆓/💳 — crie uma conta em [openrouter.ai](https://openrouter.ai) "
                     "e defina `OPENROUTER_API_KEY`. Modelos gratuitos disponíveis com limite diário.\n\n"
-                    "**ChatGPT** 💳 — requer créditos em [platform.openai.com](https://platform.openai.com) "
-                    "e defina `OPENAI_API_KEY`."
+                    "**ChatGPT** 🆓 — instale o [GitHub CLI](https://cli.github.com) e execute "
+                    "`gh auth login` no terminal. Funciona localmente sem custo via GitHub Models."
                 )
 
     # ── Área principal ────────────────────────────────────────────────────────
