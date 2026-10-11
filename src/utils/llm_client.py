@@ -120,33 +120,21 @@ class LLMClient:
             )
 
     def _init_chatgpt(self, model: Optional[str] = None):
-        """
-        Inicializa cliente ChatGPT.
-        Tenta na ordem: OpenAI API direta → Groq (fallback gratuito).
-        GitHub Models usa token OAuth do gh CLI e não suporta PATs.
-        """
+        """Inicializa cliente ChatGPT via OpenAI API."""
         if not OPENAI_AVAILABLE:
             raise ImportError("Módulo 'openai' não está instalado. "
                             "Execute: pip install openai")
 
         openai_key = os.getenv("OPENAI_API_KEY")
-        groq_key = os.getenv("GROQ_API_KEY")
-
-        if openai_key:
-            # API oficial paga
-            self.client = OpenAI(api_key=openai_key)
-            self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
-            self._chatgpt_backend = "openai"
-        elif groq_key and GROQ_AVAILABLE:
-            # Groq como alternativa gratuita (GitHub Models requer OAuth, não PAT)
-            self.client = Groq(api_key=groq_key)
-            self.model = model or "llama-3.3-70b-versatile"
-            self._chatgpt_backend = "groq"
-        else:
+        if not openai_key:
             raise ValueError(
-                "Nenhuma chave configurada para ChatGPT. "
-                "Configure OPENAI_API_KEY (pago) ou GROQ_API_KEY (gratuito) no arquivo .env"
+                "OPENAI_API_KEY não encontrada. "
+                "Configure a chave em platform.openai.com e adicione ao arquivo .env"
             )
+
+        self.client = OpenAI(api_key=openai_key)
+        self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+        self._chatgpt_backend = "openai"
 
     def _init_groq(self, model: Optional[str] = None):
         """Inicializa cliente Groq."""

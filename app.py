@@ -123,7 +123,7 @@ PROVIDER_LABELS = {
     "groq":     "Groq (Llama 3.3 70B) — Gratuito",
     "gemini":   "Gemini Flash — Gratuito",
     "claude":   "Claude (Haiku 4.5 via OpenRouter) — Pago",
-    "chatgpt":  "ChatGPT (Llama 3.3 via Groq) — Gratuito",
+    "chatgpt":  "ChatGPT (GPT-4o Mini via OpenAI) — Pago",
     "standard": "Standard (sem IA) — Gratuito",
 }
 
@@ -131,7 +131,7 @@ PROVIDER_HELP = {
     "groq":     "Requer GROQ_API_KEY no arquivo .env",
     "gemini":   "Requer GOOGLE_API_KEY no arquivo .env",
     "claude":   "Requer OPENROUTER_API_KEY (openrouter.ai) ou ANTHROPIC_API_KEY — modelos pagos",
-    "chatgpt":  "Requer GROQ_API_KEY (gratuito em console.groq.com) ou OPENAI_API_KEY",
+    "chatgpt":  "Requer OPENAI_API_KEY (platform.openai.com) — modelo pago",
     "standard": "Sempre disponível — análise baseada em regras",
 }
 
@@ -143,7 +143,7 @@ def _check_provider_availability() -> Dict[str, bool]:
     available["gemini"] = bool(os.getenv("GOOGLE_API_KEY"))
     available["standard"] = True
     available["claude"] = bool(os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENROUTER_API_KEY"))
-    available["chatgpt"] = bool(os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY"))
+    available["chatgpt"] = bool(os.getenv("OPENAI_API_KEY"))
     return available
 
 
@@ -548,11 +548,11 @@ def main():
         if not availability["claude"] or not availability["chatgpt"]:
             with st.expander("Como ativar Claude e ChatGPT?"):
                 st.markdown(
-                    "**Claude** — obtenha uma chave gratuita em [openrouter.ai](https://openrouter.ai) "
+                    "**Claude** — obtenha uma chave em [openrouter.ai](https://openrouter.ai) "
                     "e defina `OPENROUTER_API_KEY` no `.env`.\n\n"
-                    "**ChatGPT** — obtenha uma chave gratuita em "
-                    "[console.groq.com](https://console.groq.com) "
-                    "e defina `GROQ_API_KEY` no `.env`."
+                    "**ChatGPT** — obtenha uma chave em "
+                    "[platform.openai.com](https://platform.openai.com) "
+                    "e defina `OPENAI_API_KEY` no `.env`."
                 )
 
     # ── Área principal ────────────────────────────────────────────────────────
