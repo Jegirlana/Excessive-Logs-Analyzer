@@ -292,11 +292,14 @@ class LLMClient:
         })
         r = httpx.post(url, content=body, headers=headers, timeout=90)
         ct = r.headers.get("content-type", "")
-        body_preview = r.text[:200].strip()
-        if ct.startswith("text/plain") or not body_preview.startswith("{"):
+        body_text = r.text.strip()
+        if body_text == "OK" or ct.startswith("text/plain"):
+            tok = self._github_token or ""
+            kind = "fine-grained PAT" if tok.startswith("github_pat_") else "classic token (INVÁLIDO para GitHub Models)"
             raise ValueError(
-                "GitHub Models retornou resposta inválida. "
-                "Verifique se o GITHUB_TOKEN é um fine-grained PAT com permissão 'Models'."
+                f"GitHub Models rejeitou o token (tipo: {kind}). "
+                "O token precisa ser um fine-grained PAT com permissão 'Models' habilitada em "
+                "github.com/settings/tokens → Fine-grained tokens → Model permissions = Read."
             )
         r.raise_for_status()
         data = r.json()
