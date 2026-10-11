@@ -123,7 +123,7 @@ PROVIDER_LABELS = {
     "groq":     "Groq (Llama 3.3 70B) — Gratuito",
     "gemini":   "Gemini Flash — Gratuito",
     "claude":   "Claude (Haiku 4.5 via OpenRouter) — Pago",
-    "chatgpt":  "ChatGPT (GPT-4o Mini via GitHub) — Gratuito",
+    "chatgpt":  "ChatGPT (GPT-4o Mini via GitHub Models) — Gratuito",
     "standard": "Standard (sem IA) — Gratuito",
 }
 

@@ -135,12 +135,13 @@ class LLMClient:
             self.client = OpenAI(api_key=openai_key)
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
         elif github_token:
-            # GitHub Models: tier gratuito com gpt-4o-mini
+            # GitHub Models: tier gratuito
             self.client = OpenAI(
                 api_key=github_token,
-                base_url="https://models.inference.ai.azure.com",
+                base_url="https://models.github.ai/inference",
             )
-            self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
+            self.model = model or os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
+            self._chatgpt_fallbacks = ["openai/gpt-4o-mini", "openai/gpt-4o", "mistral-ai/mistral-small"]
         else:
             raise ValueError(
                 "Nenhuma chave configurada para ChatGPT. "
@@ -273,6 +274,30 @@ class LLMClient:
             ]
             return self._openrouter_call(messages)
 
+    def _chatgpt_call(self, messages: list) -> str:
+        """Chama ChatGPT/GitHub Models com fallback sequencial de modelos."""
+        models_to_try = [self.model] + [
+            m for m in getattr(self, "_chatgpt_fallbacks", []) if m != self.model
+        ]
+        last_error = None
+        for model_name in models_to_try:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    max_tokens=4096,
+                    temperature=0.7,
+                    timeout=90,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                if "404" in err_str or "No endpoints" in err_str or "503" in err_str or "Connection" in err_str:
+                    continue
+                raise
+        raise last_error
+
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
                         cached_content: str = None) -> str:
         """Análise com ChatGPT/OpenAI."""
@@ -285,15 +310,7 @@ class LLMClient:
             {"role": "user", "content": user_prompt}
         ]
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=4096,
-            temperature=0.7,
-            timeout=60,
-        )
-
-        return response.choices[0].message.content
+        return self._chatgpt_call(messages)
 
     def _analyze_groq(self, system_prompt: str, user_prompt: str,
                      cached_content: str = None) -> str:
@@ -393,14 +410,7 @@ class LLMClient:
                 return self._openrouter_call([{"role": "user", "content": prompt}])
 
         elif self.provider == "chatgpt":
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=4096,
-                temperature=0.7,
-                timeout=60,
-            )
-            return response.choices[0].message.content
+            return self._chatgpt_call([{"role": "user", "content": prompt}])
 
         elif self.provider == "groq":
             response = self.client.chat.completions.create(
