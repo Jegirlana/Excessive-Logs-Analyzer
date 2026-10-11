@@ -23,15 +23,6 @@ except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None
 
-# Azure AI Inference (GitHub Models)
-try:
-    from azure.ai.inference import ChatCompletionsClient
-    from azure.ai.inference.models import SystemMessage, UserMessage
-    from azure.core.credentials import AzureKeyCredential
-    AZURE_INFERENCE_AVAILABLE = True
-except ImportError:
-    AZURE_INFERENCE_AVAILABLE = False
-    ChatCompletionsClient = None
 
 # Groq
 try:
@@ -145,14 +136,9 @@ class LLMClient:
             self.client = OpenAI(api_key=openai_key)
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
         elif github_token:
-            # GitHub Models via SDK oficial azure-ai-inference
-            if not AZURE_INFERENCE_AVAILABLE:
-                raise ImportError("Módulo 'azure-ai-inference' não está instalado. "
-                                  "Execute: pip install azure-ai-inference")
-            self.client = ChatCompletionsClient(
-                endpoint="https://models.github.ai/inference",
-                credential=AzureKeyCredential(github_token),
-            )
+            # GitHub Models via httpx direto (sem SDK extra)
+            self._github_token = github_token
+            self.client = None
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
             self._chatgpt_backend = "github"
             self._chatgpt_fallbacks = ["openai/gpt-4o-mini", "openai/gpt-4o", "mistral-ai/mistral-small"]
@@ -288,6 +274,31 @@ class LLMClient:
             ]
             return self._openrouter_call(messages)
 
+    def _github_models_call(self, model_name: str, messages: list) -> str:
+        """Chama GitHub Models via httpx com tratamento de resposta texto puro."""
+        import httpx, json as _json
+        url = "https://models.github.ai/inference/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self._github_token}",
+            "Content-Type": "application/json",
+        }
+        body = _json.dumps({
+            "model": model_name,
+            "messages": messages,
+            "max_tokens": 4096,
+            "temperature": 0.7,
+        })
+        r = httpx.post(url, content=body, headers=headers, timeout=90)
+        if r.headers.get("content-type", "").startswith("text/plain") or not r.text.strip().startswith("{"):
+            raise ValueError(
+                "GitHub Models retornou resposta inválida. "
+                "Verifique se o GITHUB_TOKEN é um PAT válido com a permissão 'Models' "
+                "em github.com/settings/tokens."
+            )
+        r.raise_for_status()
+        data = r.json()
+        return data["choices"][0]["message"]["content"]
+
     def _chatgpt_call(self, messages: list) -> str:
         """Chama ChatGPT (OpenAI API ou GitHub Models) com fallback sequencial."""
         models_to_try = [self.model] + [
@@ -297,21 +308,8 @@ class LLMClient:
         for model_name in models_to_try:
             try:
                 if getattr(self, "_chatgpt_backend", "openai") == "github":
-                    # SDK azure-ai-inference (GitHub Models)
-                    azure_messages = []
-                    for msg in messages:
-                        if msg["role"] == "system":
-                            azure_messages.append(SystemMessage(msg["content"]))
-                        else:
-                            azure_messages.append(UserMessage(msg["content"]))
-                    response = self.client.complete(
-                        model=model_name,
-                        messages=azure_messages,
-                        max_tokens=4096,
-                        temperature=0.7,
-                    )
+                    return self._github_models_call(model_name, messages)
                 else:
-                    # SDK openai (OpenAI API oficial)
                     response = self.client.chat.completions.create(
                         model=model_name,
                         messages=messages,
@@ -319,19 +317,12 @@ class LLMClient:
                         temperature=0.7,
                         timeout=90,
                     )
-                return response.choices[0].message.content
+                    return response.choices[0].message.content
             except Exception as e:
                 last_error = e
                 err_str = str(e)
-                err_type = type(e).__name__
                 if any(k in err_str for k in ("404", "No endpoints", "503", "Connection error")):
                     continue
-                if err_type == "JSONDecodeError" or "Expecting value" in err_str:
-                    raise ValueError(
-                        "GitHub Models retornou resposta inválida (texto puro). "
-                        "Verifique se o GITHUB_TOKEN é um PAT válido com acesso a GitHub Models "
-                        "(github.com/settings/tokens → Models permission)."
-                    )
                 raise
         raise last_error
 
