@@ -122,30 +122,30 @@ class LLMClient:
     def _init_chatgpt(self, model: Optional[str] = None):
         """
         Inicializa cliente ChatGPT.
-        Tenta na ordem: OpenAI API direta → GitHub Models (gratuito).
+        Tenta na ordem: OpenAI API direta → Groq (fallback gratuito).
+        GitHub Models usa token OAuth do gh CLI e não suporta PATs.
         """
         if not OPENAI_AVAILABLE:
             raise ImportError("Módulo 'openai' não está instalado. "
                             "Execute: pip install openai")
 
         openai_key = os.getenv("OPENAI_API_KEY")
-        github_token = os.getenv("GITHUB_TOKEN")
+        groq_key = os.getenv("GROQ_API_KEY")
 
         if openai_key:
             # API oficial paga
             self.client = OpenAI(api_key=openai_key)
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
-        elif github_token:
-            # GitHub Models via httpx direto (sem SDK extra)
-            self._github_token = github_token.strip()
-            self.client = None
-            self.model = model or os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
-            self._chatgpt_backend = "github"
-            self._chatgpt_fallbacks = ["openai/gpt-4o-mini", "openai/gpt-4o", "mistral-ai/mistral-small"]
+            self._chatgpt_backend = "openai"
+        elif groq_key and GROQ_AVAILABLE:
+            # Groq como alternativa gratuita (GitHub Models requer OAuth, não PAT)
+            self.client = Groq(api_key=groq_key)
+            self.model = model or "llama-3.3-70b-versatile"
+            self._chatgpt_backend = "groq"
         else:
             raise ValueError(
                 "Nenhuma chave configurada para ChatGPT. "
-                "Configure OPENAI_API_KEY (pago) ou GITHUB_TOKEN (gratuito) no arquivo .env"
+                "Configure OPENAI_API_KEY (pago) ou GROQ_API_KEY (gratuito) no arquivo .env"
             )
 
     def _init_groq(self, model: Optional[str] = None):
@@ -274,52 +274,16 @@ class LLMClient:
             ]
             return self._openrouter_call(messages)
 
-    def _github_models_call(self, model_name: str, messages: list) -> str:
-        """Chama GitHub Models via OpenAI SDK com base_url do GitHub."""
-        client = OpenAI(
-            base_url="https://models.github.ai/inference",
-            api_key=self._github_token,
-        )
-        response = client.chat.completions.create(
-            model=model_name,
+    def _chatgpt_call(self, messages: list) -> str:
+        """Chama ChatGPT via OpenAI API ou Groq (fallback gratuito)."""
+        response = self.client.chat.completions.create(
+            model=self.model,
             messages=messages,
             max_tokens=4096,
             temperature=0.7,
             timeout=90,
         )
-        if isinstance(response, str):
-            raise ValueError(
-                f"GitHub Models retornou resposta inválida ({response!r}). "
-                "Verifique se o GITHUB_TOKEN é um fine-grained PAT com permissão 'Models'."
-            )
         return response.choices[0].message.content
-
-    def _chatgpt_call(self, messages: list) -> str:
-        """Chama ChatGPT (OpenAI API ou GitHub Models) com fallback sequencial."""
-        models_to_try = [self.model] + [
-            m for m in getattr(self, "_chatgpt_fallbacks", []) if m != self.model
-        ]
-        last_error = None
-        for model_name in models_to_try:
-            try:
-                if getattr(self, "_chatgpt_backend", "openai") == "github":
-                    return self._github_models_call(model_name, messages)
-                else:
-                    response = self.client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        max_tokens=4096,
-                        temperature=0.7,
-                        timeout=90,
-                    )
-                    return response.choices[0].message.content
-            except Exception as e:
-                last_error = e
-                err_str = str(e)
-                if any(k in err_str for k in ("404", "No endpoints", "503", "Connection error")):
-                    continue
-                raise
-        raise last_error
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
                         cached_content: str = None) -> str:
