@@ -121,18 +121,18 @@ SEVERITY_EMOJI = {
 
 PROVIDER_LABELS = {
     "groq":     "Groq (Llama 3.3 70B) — Gratuito",
-    "gemini":   "Gemini Flash — Gratuito",
-    "claude":   "Claude (Haiku 4.5 via OpenRouter) — Pago",
+    "gemini":   "Gemini Flash (Google AI Studio) — Gratuito",
+    "claude":   "Claude (via OpenRouter) — Gratuito com limite / Pago",
     "chatgpt":  "ChatGPT (GPT-4o Mini via OpenAI) — Pago",
     "standard": "Standard (sem IA) — Gratuito",
 }
 
 PROVIDER_HELP = {
-    "groq":     "Requer GROQ_API_KEY no arquivo .env",
-    "gemini":   "Requer GOOGLE_API_KEY no arquivo .env",
-    "claude":   "Requer OPENROUTER_API_KEY (openrouter.ai) ou ANTHROPIC_API_KEY — modelos pagos",
-    "chatgpt":  "Requer OPENAI_API_KEY (platform.openai.com) — modelo pago",
-    "standard": "Sempre disponível — análise baseada em regras",
+    "groq":     "Gratuito — requer GROQ_API_KEY (console.groq.com)",
+    "gemini":   "Gratuito — requer GOOGLE_API_KEY (aistudio.google.com). Cota mensal limitada.",
+    "claude":   "OpenRouter tem modelos gratuitos com limite diário. Requer OPENROUTER_API_KEY (openrouter.ai)",
+    "chatgpt":  "Pago — requer OPENAI_API_KEY com créditos em platform.openai.com",
+    "standard": "Sempre disponível — análise baseada em regras, sem IA",
 }
 
 
@@ -502,7 +502,7 @@ def main():
         availability = _check_provider_availability()
 
         claude_status = "🟢 Disponível" if availability["claude"] else "🔴 Chave não configurada"
-        chatgpt_status = "🟢 Disponível" if availability["chatgpt"] else "🔴 Chave não configurada"
+        chatgpt_status = "🟢 Disponível (💳 Pago)" if availability["chatgpt"] else "🔴 Chave não configurada"
         st.caption(f"Claude: {claude_status} · ChatGPT: {chatgpt_status}")
 
         selected: Dict[str, bool] = {}
@@ -544,15 +544,18 @@ def main():
         if len(active_providers) == 0:
             st.warning("Selecione pelo menos um provedor.")
 
-        # Dica de configuração de Claude/ChatGPT
+        # Dica de configuração
         if not availability["claude"] or not availability["chatgpt"]:
-            with st.expander("Como ativar Claude e ChatGPT?"):
+            with st.expander("Como configurar os provedores?"):
                 st.markdown(
-                    "**Claude** — obtenha uma chave em [openrouter.ai](https://openrouter.ai) "
-                    "e defina `OPENROUTER_API_KEY` no `.env`.\n\n"
-                    "**ChatGPT** — obtenha uma chave em "
-                    "[platform.openai.com](https://platform.openai.com) "
-                    "e defina `OPENAI_API_KEY` no `.env`."
+                    "**Groq** 🆓 — crie uma chave gratuita em [console.groq.com](https://console.groq.com) "
+                    "e defina `GROQ_API_KEY`.\n\n"
+                    "**Gemini** 🆓 — crie uma chave gratuita em [aistudio.google.com](https://aistudio.google.com) "
+                    "e defina `GOOGLE_API_KEY`. Cota mensal limitada.\n\n"
+                    "**Claude** 🆓/💳 — crie uma conta em [openrouter.ai](https://openrouter.ai) "
+                    "e defina `OPENROUTER_API_KEY`. Modelos gratuitos disponíveis com limite diário.\n\n"
+                    "**ChatGPT** 💳 — requer créditos em [platform.openai.com](https://platform.openai.com) "
+                    "e defina `OPENAI_API_KEY`."
                 )
 
     # ── Área principal ────────────────────────────────────────────────────────
