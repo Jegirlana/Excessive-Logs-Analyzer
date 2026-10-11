@@ -288,13 +288,14 @@ class LLMClient:
             "max_tokens": 4096,
             "temperature": 0.7,
         })
+        token_prefix = self._github_token[:12] if self._github_token else "VAZIO"
         r = httpx.post(url, content=body, headers=headers, timeout=90)
         ct = r.headers.get("content-type", "")
         body_preview = r.text[:200].strip()
         if ct.startswith("text/plain") or not body_preview.startswith("{"):
             raise ValueError(
-                f"GitHub Models: HTTP {r.status_code} | content-type: {ct!r} | "
-                f"body: {body_preview!r}"
+                f"GitHub Models: HTTP {r.status_code} | token: {token_prefix!r} | "
+                f"content-type: {ct!r} | body: {body_preview!r}"
             )
         r.raise_for_status()
         data = r.json()
