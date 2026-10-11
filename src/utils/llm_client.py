@@ -137,7 +137,7 @@ class LLMClient:
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "gpt-4o")
         elif github_token:
             # GitHub Models via httpx direto (sem SDK extra)
-            self._github_token = github_token
+            self._github_token = github_token.strip()
             self.client = None
             self.model = model or os.getenv("OPENAI_MODEL_NAME", "openai/gpt-4o-mini")
             self._chatgpt_backend = "github"
@@ -275,35 +275,24 @@ class LLMClient:
             return self._openrouter_call(messages)
 
     def _github_models_call(self, model_name: str, messages: list) -> str:
-        """Chama GitHub Models via httpx com tratamento de resposta texto puro."""
-        import httpx, json as _json
-        url = "https://models.github.ai/inference/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self._github_token}",
-            "Content-Type": "application/json",
-            "x-ms-useragent": "github-cli-models",
-            "x-ms-user-agent": "github-cli-models",
-        }
-        body = _json.dumps({
-            "model": model_name,
-            "messages": messages,
-            "max_tokens": 4096,
-            "temperature": 0.7,
-        })
-        r = httpx.post(url, content=body, headers=headers, timeout=90)
-        ct = r.headers.get("content-type", "")
-        body_text = r.text.strip()
-        if body_text == "OK" or ct.startswith("text/plain"):
-            tok = self._github_token or ""
-            kind = "fine-grained PAT" if tok.startswith("github_pat_") else "classic token (INVÁLIDO para GitHub Models)"
+        """Chama GitHub Models via OpenAI SDK com base_url do GitHub."""
+        client = OpenAI(
+            base_url="https://models.github.ai/inference",
+            api_key=self._github_token,
+        )
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            max_tokens=4096,
+            temperature=0.7,
+            timeout=90,
+        )
+        if isinstance(response, str):
             raise ValueError(
-                f"GitHub Models rejeitou o token (tipo: {kind}). "
-                "O token precisa ser um fine-grained PAT com permissão 'Models' habilitada em "
-                "github.com/settings/tokens → Fine-grained tokens → Model permissions = Read."
+                f"GitHub Models retornou resposta inválida ({response!r}). "
+                "Verifique se o GITHUB_TOKEN é um fine-grained PAT com permissão 'Models'."
             )
-        r.raise_for_status()
-        data = r.json()
-        return data["choices"][0]["message"]["content"]
+        return response.choices[0].message.content
 
     def _chatgpt_call(self, messages: list) -> str:
         """Chama ChatGPT (OpenAI API ou GitHub Models) com fallback sequencial."""
