@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -240,6 +241,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                 unnecessary_detect = UnnecessaryLogsDetector(llm_client)
                 sampling_recomm    = SamplingRecommender(llm_client)
 
+                t_start = time.perf_counter()
                 try:
                     level_analysis      = level_analyzer.analyze(logs, service_levels)
                     unnecessary_analysis = unnecessary_detect.analyze(logs, duplicates)
@@ -247,6 +249,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                 except Exception as e:
                     st.warning(f"⚠️ Erro na análise com {provider}: {e}")
                     continue
+                elapsed_seconds = round(time.perf_counter() - t_start, 2)
 
                 overall = _calculate_assessment(level_analysis, unnecessary_analysis, sampling_analysis)
 
@@ -257,6 +260,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                         "analysis_mode": provider,
                         "llm_provider": llm_client.provider if llm_client else None,
                         "model": llm_client.model if llm_client else None,
+                        "elapsed_seconds": elapsed_seconds,
                     },
                     "analyses": {
                         "log_levels": level_analysis,
@@ -265,7 +269,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                     },
                     "overall_assessment": overall,
                 }
-                st.write(f"✓ {provider.upper()} concluído — Pontuação de Saúde: {overall['health_score']}/100")
+                st.write(f"✓ {provider.upper()} concluído em {elapsed_seconds}s — Pontuação de Saúde: {overall['health_score']}/100")
 
             status.update(label="✅ Análise concluída!", state="complete", expanded=False)
         except Exception as e:
@@ -369,13 +373,15 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
     metadata   = data["metadata"]
 
     # Cabeçalho com métricas
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Pontuação de Saúde", f"{assessment['health_score']}/100",
                 delta=None,
                 help="0 = crítico, 100 = perfeito")
     col2.metric("Severidade", assessment["overall_severity"].upper())
     col3.metric("Problemas", assessment["total_issues"])
     col4.metric("Modelo", _friendly_model_name(metadata.get("model")))
+    elapsed = metadata.get("elapsed_seconds")
+    col5.metric("Tempo de execução", f"{elapsed}s" if elapsed is not None else "—")
 
     if assessment.get("priority_actions"):
         st.subheader("🎯 Ações Prioritárias")
@@ -477,6 +483,7 @@ def _show_comparative_tab(results_by_mode: Dict[str, Any]):
             "Redução potencial": f"{analyses['unnecessary_logs'].get('reduction_potential_percentage',0):.1f}%",
             "Estratégias de amostragem": len(analyses["sampling_recommendations"].get("recommended_strategies", [])),
             "Modelo": _friendly_model_name(data["metadata"].get("model")),
+            "Tempo (s)": data["metadata"].get("elapsed_seconds", "—"),
         })
 
     if rows:
