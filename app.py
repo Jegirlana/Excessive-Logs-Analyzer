@@ -135,6 +135,28 @@ PROVIDER_HELP = {
     "standard": "Sempre disponível — análise baseada em regras, sem IA",
 }
 
+MODEL_DISPLAY_NAMES = {
+    "llama-3.3-70b-versatile":          "Llama 3.3 70B",
+    "openai/gpt-oss-20b":               "Llama 3.3 70B",
+    "models/gemini-2.5-flash":          "Gemini 2.5 Flash",
+    "gemini-2.5-flash":                 "Gemini 2.5 Flash",
+    "gemini-flash-latest":              "Gemini Flash",
+    "anthropic/claude-haiku-4.5":       "Claude Haiku 4.5",
+    "anthropic/claude-haiku-5.5":       "Claude Haiku 5.5",
+    "anthropic/claude-sonnet-4.5":      "Claude Sonnet 4.5",
+    "anthropic/claude-3.5-haiku:free":  "Claude 3.5 Haiku",
+    "claude-3-5-sonnet-20241022":       "Claude 3.5 Sonnet",
+    "gpt-4o-mini":                      "GPT-4o Mini",
+    "openai/gpt-4o-mini":               "GPT-4o Mini",
+}
+
+
+def _friendly_model_name(raw_model: Optional[str]) -> str:
+    """Retorna nome amigável do modelo ou 'Análise por regras' se não houver modelo."""
+    if not raw_model:
+        return "Análise por regras"
+    return MODEL_DISPLAY_NAMES.get(raw_model, raw_model)
+
 
 def _check_provider_availability() -> Dict[str, bool]:
     """Verifica quais provedores estão disponíveis com base nas variáveis de ambiente."""
@@ -353,7 +375,7 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
                 help="0 = crítico, 100 = perfeito")
     col2.metric("Severidade", assessment["overall_severity"].upper())
     col3.metric("Problemas", assessment["total_issues"])
-    col4.metric("Modelo", metadata.get("model") or "regras")
+    col4.metric("Modelo", _friendly_model_name(metadata.get("model")))
 
     if assessment.get("priority_actions"):
         st.subheader("🎯 Ações Prioritárias")
@@ -454,7 +476,7 @@ def _show_comparative_tab(results_by_mode: Dict[str, Any]):
             "Problemas": assessment["total_issues"],
             "Redução potencial": f"{analyses['unnecessary_logs'].get('reduction_potential_percentage',0):.1f}%",
             "Estratégias de amostragem": len(analyses["sampling_recommendations"].get("recommended_strategies", [])),
-            "Modelo": data["metadata"].get("model") or "regras",
+            "Modelo": _friendly_model_name(data["metadata"].get("model")),
         })
 
     if rows:
