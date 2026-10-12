@@ -55,6 +55,37 @@ except ImportError:
     pass
 
 
+# Preço por 1 000 tokens (USD). Atualizar conforme tabelas oficiais dos provedores.
+_MODEL_PRICING = {
+    # Anthropic (direto)
+    "claude-3-5-sonnet-20241022":      {"input": 0.003,   "output": 0.015},
+    # OpenRouter — gratuito = sem custo, mas registra tokens
+    "anthropic/claude-haiku-4.5":      {"input": 0.0,     "output": 0.0},
+    "anthropic/claude-haiku-5.5":      {"input": 0.0,     "output": 0.0},
+    "anthropic/claude-sonnet-4.5":     {"input": 0.0,     "output": 0.0},
+    "anthropic/claude-3.5-haiku:free": {"input": 0.0,     "output": 0.0},
+    # OpenAI direto
+    "gpt-4o-mini":                     {"input": 0.00015, "output": 0.0006},
+    # GitHub Models — gratuito local
+    "openai/gpt-4o-mini":              {"input": 0.0,     "output": 0.0},
+    # Groq — gratuito (free tier)
+    "llama-3.3-70b-versatile":         {"input": 0.0,     "output": 0.0},
+    # Gemini — gratuito (free tier)
+    "models/gemini-2.5-flash":         {"input": 0.0,     "output": 0.0},
+    "gemini-2.5-flash":                {"input": 0.0,     "output": 0.0},
+    "models/gemini-flash-latest":      {"input": 0.0,     "output": 0.0},
+}
+
+
+def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    pricing = _MODEL_PRICING.get(model, {"input": 0.0, "output": 0.0})
+    return round(
+        (input_tokens / 1000) * pricing["input"] +
+        (output_tokens / 1000) * pricing["output"],
+        6,
+    )
+
+
 class LLMClient:
     """Cliente para realizar análises usando diferentes APIs de LLM."""
 
@@ -67,6 +98,17 @@ class LLMClient:
             model: Nome do modelo específico (opcional)
         """
         self.provider = provider.lower()
+        # Acumulador de recursos: preenchido a cada chamada à API
+        self.resource_usage = {
+            "calls":          0,
+            "retries":        0,
+            "input_tokens":   0,
+            "output_tokens":  0,
+            "total_tokens":   0,
+            "estimated_cost_usd": 0.0,
+            "last_status":    None,   # "ok" | "error" | "fallback"
+            "errors":         [],
+        }
 
         if self.provider == "claude":
             self._init_claude(model)
@@ -80,6 +122,21 @@ class LLMClient:
             self._init_puter(model)
         else:
             raise ValueError(f"Provedor desconhecido: {provider}. Use 'claude', 'chatgpt', 'groq', 'gemini' ou 'puter'")
+
+    def _record_usage(self, input_tokens: int, output_tokens: int, status: str = "ok", error: str = None):
+        """Acumula tokens, custo e status de uma chamada."""
+        self.resource_usage["calls"] += 1
+        self.resource_usage["input_tokens"] += input_tokens
+        self.resource_usage["output_tokens"] += output_tokens
+        self.resource_usage["total_tokens"] += input_tokens + output_tokens
+        self.resource_usage["estimated_cost_usd"] = round(
+            self.resource_usage["estimated_cost_usd"] +
+            _estimate_cost(self.model, input_tokens, output_tokens),
+            6,
+        )
+        self.resource_usage["last_status"] = status
+        if error:
+            self.resource_usage["errors"].append(error)
 
     def _init_claude(self, model: Optional[str] = None):
         """
@@ -245,7 +302,11 @@ class LLMClient:
             m for m in getattr(self, "_openrouter_fallbacks", []) if m != self.model
         ]
         last_error = None
+        first = True
         for model_name in models_to_try:
+            if not first:
+                self.resource_usage["retries"] += 1
+            first = False
             try:
                 response = self.client.chat.completions.create(
                     model=model_name,
@@ -254,13 +315,23 @@ class LLMClient:
                     temperature=0.7,
                     timeout=90,
                 )
+                usage = response.usage
+                status = "fallback" if model_name != self.model else "ok"
+                self._record_usage(
+                    getattr(usage, "prompt_tokens", 0),
+                    getattr(usage, "completion_tokens", 0),
+                    status=status,
+                )
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = e
                 err_str = str(e)
                 if "404" in err_str or "No endpoints" in err_str or "503" in err_str:
-                    continue  # tenta próximo modelo
-                raise  # outro erro — propaga imediatamente
+                    self.resource_usage["retries"] += 1
+                    self._record_usage(0, 0, status="error", error=err_str[:120])
+                    continue
+                self._record_usage(0, 0, status="error", error=str(e)[:120])
+                raise
         raise last_error
 
     def _analyze_claude_with_caching(self, system_prompt: str, user_prompt: str,
@@ -281,6 +352,10 @@ class LLMClient:
                 system=system,
                 messages=messages,
                 timeout=60,
+            )
+            self._record_usage(
+                response.usage.input_tokens,
+                response.usage.output_tokens,
             )
             return response.content[0].text
         else:
@@ -304,10 +379,17 @@ class LLMClient:
             timeout=90,
         )
         if isinstance(response, str):
+            self._record_usage(0, 0, status="error",
+                               error="GitHub Models retornou resposta inválida")
             raise ValueError(
                 "GitHub Models retornou resposta inválida. "
                 "Execute 'gh auth login' no terminal e tente novamente."
             )
+        usage = response.usage
+        self._record_usage(
+            getattr(usage, "prompt_tokens", 0),
+            getattr(usage, "completion_tokens", 0),
+        )
         return response.choices[0].message.content
 
     def _analyze_chatgpt(self, system_prompt: str, user_prompt: str,
@@ -343,7 +425,11 @@ class LLMClient:
             temperature=0.7,
             timeout=60,
         )
-
+        usage = response.usage
+        self._record_usage(
+            getattr(usage, "prompt_tokens", 0),
+            getattr(usage, "completion_tokens", 0),
+        )
         return response.choices[0].message.content
 
     def _gemini_generate(self, prompt: str) -> str:
@@ -358,24 +444,38 @@ class LLMClient:
         models_to_try = [self.model] + [m for m in fallback_models if m != self.model]
 
         last_error = None
+        first_model = True
         for model_name in models_to_try:
+            if not first_model:
+                self.resource_usage["retries"] += 1
+            first_model = False
             client = genai.GenerativeModel(model_name)
             for attempt in range(3):
+                if attempt > 0:
+                    self.resource_usage["retries"] += 1
                 try:
                     response = client.generate_content(
                         prompt,
                         generation_config=generation_config,
                         request_options=request_options,
                     )
+                    # usage_metadata disponível no SDK >= 0.5
+                    um = getattr(response, "usage_metadata", None)
+                    inp = getattr(um, "prompt_token_count", 0) or 0
+                    out = getattr(um, "candidates_token_count", 0) or 0
+                    status = "fallback" if model_name != self.model else "ok"
+                    self._record_usage(inp, out, status=status)
                     return response.text
                 except Exception as e:
                     last_error = e
                     err_str = str(e)
                     if "503" in err_str or "high demand" in err_str or "overloaded" in err_str.lower():
+                        self._record_usage(0, 0, status="error", error=err_str[:120])
                         wait = 10 * (attempt + 1)
                         time.sleep(wait)
                         continue
-                    break  # erro diferente de 503 — tenta próximo modelo
+                    self._record_usage(0, 0, status="error", error=err_str[:120])
+                    break
 
         raise last_error
 
@@ -417,6 +517,10 @@ class LLMClient:
                     messages=[{"role": "user", "content": prompt}],
                     timeout=60,
                 )
+                self._record_usage(
+                    response.usage.input_tokens,
+                    response.usage.output_tokens,
+                )
                 return response.content[0].text
             else:
                 return self._openrouter_call([{"role": "user", "content": prompt}])
@@ -431,6 +535,11 @@ class LLMClient:
                 max_tokens=4096,
                 temperature=0.7,
                 timeout=60,
+            )
+            usage = response.usage
+            self._record_usage(
+                getattr(usage, "prompt_tokens", 0),
+                getattr(usage, "completion_tokens", 0),
             )
             return response.choices[0].message.content
 

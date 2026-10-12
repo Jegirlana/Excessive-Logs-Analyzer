@@ -191,6 +191,34 @@ def _health_color(score: int) -> str:
     return "inverse"
 
 
+# ─── Recursos do processo ─────────────────────────────────────────────────────
+
+try:
+    import psutil as _psutil
+    _PSUTIL_AVAILABLE = True
+except ImportError:
+    _psutil = None
+    _PSUTIL_AVAILABLE = False
+
+
+def _get_process():
+    if _PSUTIL_AVAILABLE:
+        return _psutil.Process()
+    return None
+
+
+def _snapshot_resources(proc):
+    """Retorna (rss_mb, cpu_pct) ou (None, None) se psutil não disponível."""
+    if proc is None:
+        return None, None
+    try:
+        mem_mb = round(proc.memory_info().rss / 1024 / 1024, 2)
+        cpu_pct = round(proc.cpu_percent(interval=0.1), 2)
+        return mem_mb, cpu_pct
+    except Exception:
+        return None, None
+
+
 # ─── Execução da análise ──────────────────────────────────────────────────────
 
 def _run_analysis(log_file_path: str, selected_providers: list, status_placeholder) -> Dict[str, Any]:
@@ -226,6 +254,8 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
 
             all_results: Dict[str, Any] = {}
 
+            _proc = _get_process()
+
             for provider in selected_providers:
                 st.write(f"🤖 Analisando com **{provider.upper()}**...")
 
@@ -241,6 +271,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                 unnecessary_detect = UnnecessaryLogsDetector(llm_client)
                 sampling_recomm    = SamplingRecommender(llm_client)
 
+                mem_before, cpu_before = _snapshot_resources(_proc)
                 t_start = time.perf_counter()
                 try:
                     level_analysis      = level_analyzer.analyze(logs, service_levels)
@@ -250,6 +281,25 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                     st.warning(f"⚠️ Erro na análise com {provider}: {e}")
                     continue
                 elapsed_seconds = round(time.perf_counter() - t_start, 2)
+                mem_after, cpu_after = _snapshot_resources(_proc)
+
+                ru = llm_client.resource_usage if llm_client else {}
+                resource_meta = {
+                    "elapsed_seconds":     elapsed_seconds,
+                    "input_tokens":        ru.get("input_tokens"),
+                    "output_tokens":       ru.get("output_tokens"),
+                    "total_tokens":        ru.get("total_tokens"),
+                    "estimated_cost_usd":  ru.get("estimated_cost_usd"),
+                    "api_calls":           ru.get("calls"),
+                    "api_retries":         ru.get("retries"),
+                    "api_status":          ru.get("last_status"),
+                    "api_errors":          ru.get("errors") or [],
+                    "mem_before_mb":       mem_before,
+                    "mem_after_mb":        mem_after,
+                    "mem_delta_mb":        round(mem_after - mem_before, 2) if mem_before is not None else None,
+                    "cpu_before_pct":      cpu_before,
+                    "cpu_after_pct":       cpu_after,
+                }
 
                 overall = _calculate_assessment(level_analysis, unnecessary_analysis, sampling_analysis)
 
@@ -260,7 +310,7 @@ def _run_analysis(log_file_path: str, selected_providers: list, status_placehold
                         "analysis_mode": provider,
                         "llm_provider": llm_client.provider if llm_client else None,
                         "model": llm_client.model if llm_client else None,
-                        "elapsed_seconds": elapsed_seconds,
+                        **resource_meta,
                     },
                     "analyses": {
                         "log_levels": level_analysis,
@@ -372,7 +422,7 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
     analyses   = data["analyses"]
     metadata   = data["metadata"]
 
-    # Cabeçalho com métricas
+    # Cabeçalho com métricas principais
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Pontuação de Saúde", f"{assessment['health_score']}/100",
                 delta=None,
@@ -382,6 +432,46 @@ def _show_provider_results(provider: str, data: Dict[str, Any], summary: Dict[st
     col4.metric("Modelo", _friendly_model_name(metadata.get("model")))
     elapsed = metadata.get("elapsed_seconds")
     col5.metric("Tempo de execução", f"{elapsed}s" if elapsed is not None else "—")
+
+    # Painel de recursos de execução
+    with st.expander("📈 Recursos de execução", expanded=False):
+        r1, r2, r3, r4, r5 = st.columns(5)
+
+        total_tok = metadata.get("total_tokens")
+        inp_tok   = metadata.get("input_tokens")
+        out_tok   = metadata.get("output_tokens")
+        cost      = metadata.get("estimated_cost_usd")
+        calls     = metadata.get("api_calls")
+        retries   = metadata.get("api_retries")
+        status    = metadata.get("api_status")
+        mem_delta = metadata.get("mem_delta_mb")
+        cpu_after = metadata.get("cpu_after_pct")
+
+        tok_label = f"{total_tok:,}" if total_tok else "—"
+        if inp_tok and out_tok:
+            tok_label += f"\n({inp_tok:,} in / {out_tok:,} out)"
+
+        r1.metric("Tokens", tok_label,
+                  help="Tokens de entrada e saída reportados pela API")
+        r2.metric("Custo estimado",
+                  f"USD {cost:.6f}" if cost is not None else "—",
+                  help="Gratuito não significa ausência de consumo — custo real para planos pagos")
+        calls_str = f"{calls}" if calls is not None else "—"
+        if retries:
+            calls_str += f" ({retries} retentativa{'s' if retries > 1 else ''})"
+        r3.metric("Chamadas à API", calls_str)
+        status_map = {"ok": "✅ ok", "fallback": "⚠️ fallback", "error": "❌ erro", None: "—"}
+        r4.metric("Status", status_map.get(status, status or "—"))
+        mem_str = f"{mem_delta:+.1f} MB" if mem_delta is not None else "—"
+        cpu_str = f"{cpu_after:.1f}%" if cpu_after is not None else "—"
+        r5.metric("Memória / CPU", f"{mem_str} · {cpu_str}",
+                  help="Delta de memória RSS e CPU% do processo ao final da análise")
+
+        errors = metadata.get("api_errors") or []
+        if errors:
+            st.caption("Erros registrados:")
+            for err in errors:
+                st.code(err, language=None)
 
     if assessment.get("priority_actions"):
         st.subheader("🎯 Ações Prioritárias")
@@ -475,15 +565,32 @@ def _show_comparative_tab(results_by_mode: Dict[str, Any]):
     for mode, data in results_by_mode.items():
         assessment = data["overall_assessment"]
         analyses   = data["analyses"]
+        meta       = data["metadata"]
+
+        total_tok = meta.get("total_tokens")
+        cost      = meta.get("estimated_cost_usd")
+        retries   = meta.get("api_retries")
+        status    = meta.get("api_status")
+        mem_delta = meta.get("mem_delta_mb")
+
+        calls_str = str(meta.get("api_calls", "—"))
+        if retries:
+            calls_str += f"+{retries}r"
+
         rows.append({
-            "Provedor": mode.upper(),
-            "Pontuação de Saúde": assessment["health_score"],
-            "Severidade": assessment["overall_severity"].upper(),
-            "Problemas": assessment["total_issues"],
-            "Redução potencial": f"{analyses['unnecessary_logs'].get('reduction_potential_percentage',0):.1f}%",
-            "Estratégias de amostragem": len(analyses["sampling_recommendations"].get("recommended_strategies", [])),
-            "Modelo": _friendly_model_name(data["metadata"].get("model")),
-            "Tempo (s)": data["metadata"].get("elapsed_seconds", "—"),
+            "Provedor":              mode.upper(),
+            "Pontuação de Saúde":    assessment["health_score"],
+            "Severidade":            assessment["overall_severity"].upper(),
+            "Problemas":             assessment["total_issues"],
+            "Redução potencial":     f"{analyses['unnecessary_logs'].get('reduction_potential_percentage',0):.1f}%",
+            "Estratégias":           len(analyses["sampling_recommendations"].get("recommended_strategies", [])),
+            "Modelo":                _friendly_model_name(meta.get("model")),
+            "Tempo (s)":             meta.get("elapsed_seconds", "—"),
+            "Tokens":                f"{total_tok:,}" if total_tok else "—",
+            "Custo (USD)":           f"{cost:.6f}" if cost is not None else "—",
+            "Chamadas":              calls_str,
+            "Status":                status or "—",
+            "Mem delta (MB)":        f"{mem_delta:+.1f}" if mem_delta is not None else "—",
         })
 
     if rows:
