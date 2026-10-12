@@ -287,8 +287,9 @@ class UnnecessaryLogsDetector:
         system_prompt = """Especialista em observabilidade. Classifique logs como NECESSÁRIO ou DESNECESSÁRIO.
 DESNECESSÁRIO: asset estático, health check GET 200, mensagem genérica, repetitivo sem valor.
 NECESSÁRIO: erro/falha, escrita (POST/PUT/DELETE), contexto de debug, evento significativo.
+IMPORTANTE: Responda SEMPRE em português brasileiro. Todos os textos de "reasoning" e "top_issues" devem estar em português.
 Responda APENAS com JSON:
-{"unnecessary_logs":[0,2,5],"reasoning":"explicação","severity":"low|medium|high|critical","top_issues":["issue1"]}"""
+{"unnecessary_logs":[0,2,5],"reasoning":"explicação em português","severity":"low|medium|high|critical","top_issues":["problema em português"]}"""
 
         logs_data = []
         for i, log in enumerate(sample_logs):

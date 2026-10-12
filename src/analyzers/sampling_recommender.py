@@ -366,25 +366,27 @@ Avalie:
 3. Qual severidade do problema (ok, low, medium, high, critical)
 4. Estratégias específicas de sampling recomendadas
 
+IMPORTANTE: Responda SEMPRE em português brasileiro. Todos os campos de texto devem estar em português.
+
 Responda APENAS com JSON válido:
 {
   "severity": "ok|low|medium|high|critical",
   "needs_sampling": true|false,
   "recommended_strategies": [
     {
-      "strategy_name": "nome da estratégia",
+      "strategy_name": "nome da estratégia em português",
       "priority": "low|medium|high|critical",
-      "description": "descrição detalhada",
-      "apply_to": ["onde aplicar"],
+      "description": "descrição detalhada em português",
+      "apply_to": ["onde aplicar em português"],
       "expected_reduction_percentage": 50,
-      "implementation_notes": "como implementar"
+      "implementation_notes": "como implementar em português"
     }
   ],
   "estimated_total_reduction": {
     "min_percentage": 30,
     "max_percentage": 60
   },
-  "summary": "resumo da análise"
+  "summary": "resumo da análise em português"
 }"""
 
         user_prompt = f"""Analise este cenário de logs:

@@ -644,9 +644,18 @@ def main():
         st.subheader("🤖 Provedores de IA")
         availability = _check_provider_availability()
 
-        claude_status = "🟢 Disponível" if availability["claude"] else "🔴 Chave não configurada"
-        chatgpt_status = "🟢 Disponível" if availability["chatgpt"] else "🔴 gh auth login necessário"
-        st.caption(f"Claude: {claude_status} · ChatGPT: {chatgpt_status}")
+        provider_status_labels = {
+            "groq":     ("Groq",    "🔴 Chave não configurada"),
+            "gemini":   ("Gemini",  "🔴 Chave não configurada"),
+            "claude":   ("Claude",  "🔴 Chave não configurada"),
+            "chatgpt":  ("ChatGPT", "🔴 gh auth login necessário"),
+            "standard": ("Standard","🟢 Disponível"),
+        }
+        status_parts = []
+        for p, (name, err_msg) in provider_status_labels.items():
+            status = "🟢 Disponível" if availability[p] else err_msg
+            status_parts.append(f"{name}: {status}")
+        st.caption(" · ".join(status_parts))
 
         selected: Dict[str, bool] = {}
         for provider in ["groq", "gemini", "claude", "chatgpt", "standard"]:

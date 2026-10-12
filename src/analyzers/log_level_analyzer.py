@@ -221,6 +221,8 @@ Avalie cada nível e identifique:
 2. Logs que deveriam estar em nível diferente
 3. Severidade do problema (ok, low, medium, high, critical)
 
+IMPORTANTE: Responda SEMPRE em português brasileiro. Todos os campos de texto devem estar em português.
+
 Responda APENAS com JSON válido:
 {
   "severity": "ok|low|medium|high|critical",
@@ -228,12 +230,12 @@ Responda APENAS com JSON válido:
     {
       "type": "issue_type",
       "level_affected": "INFO|WARN|ERROR|DEBUG",
-      "description": "descrição do problema",
+      "description": "descrição do problema em português",
       "severity": "low|medium|high|critical",
-      "recommendation": "o que fazer"
+      "recommendation": "o que fazer em português"
     }
   ],
-  "summary": "breve resumo da análise"
+  "summary": "breve resumo da análise em português"
 }"""
 
         user_prompt = f"""Analise esta distribuição de níveis de log:

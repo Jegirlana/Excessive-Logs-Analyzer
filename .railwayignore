@@ -1,0 +1,14 @@
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.env
+.env.local
+reports/
+invite.html
+invite_whatsapp.html
+puter-bridge/node_modules/
+puter-bridge/.env
+puter-bridge.log
+.puter.pid
