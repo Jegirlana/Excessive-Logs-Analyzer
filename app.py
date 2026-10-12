@@ -705,8 +705,8 @@ def main():
 
     # ── Área principal ────────────────────────────────────────────────────────
 
-    # Preview do arquivo antes da análise
-    if not run_btn:
+    # Preview do arquivo antes da análise (só quando não há resultado salvo e não está executando)
+    if not run_btn and "analysis_result" not in st.session_state:
         log_path_preview = None
         if uploaded:
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
@@ -743,59 +743,80 @@ def main():
         return
 
     # ── Execução ──────────────────────────────────────────────────────────────
-    log_file_path: Optional[str] = None
+    if run_btn:
+        log_file_path: Optional[str] = None
 
-    if uploaded:
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
-        tmp.write(uploaded.getvalue())
-        tmp.flush()
-        log_file_path = tmp.name
-    elif use_default:
-        log_file_path = os.path.join(os.path.dirname(__file__), "dataset", "synthetic_logs.json")
+        if uploaded:
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+            tmp.write(uploaded.getvalue())
+            tmp.flush()
+            log_file_path = tmp.name
+        elif use_default:
+            log_file_path = os.path.join(os.path.dirname(__file__), "dataset", "synthetic_logs.json")
 
-    if not log_file_path or not os.path.exists(log_file_path):
-        st.error("❌ Arquivo de logs não encontrado. Faça upload ou use o dataset padrão.")
+        if not log_file_path or not os.path.exists(log_file_path):
+            st.error("❌ Arquivo de logs não encontrado. Faça upload ou use o dataset padrão.")
+            return
+
+        status_placeholder = st.empty()
+
+        try:
+            result = _run_analysis(log_file_path, active_providers, status_placeholder)
+        except Exception as e:
+            st.error(f"❌ Erro durante a análise: {e}")
+            with st.expander("Detalhes do erro"):
+                import traceback
+                st.code(traceback.format_exc())
+            return
+
+        results_by_mode = result.get("results_by_mode", {})
+        summary = result["summary"]
+
+        if not results_by_mode:
+            st.warning("Nenhum resultado disponível. Verifique as configurações dos provedores.")
+            return
+
+        # Salva relatórios em reports/
+        reports_dir = os.path.join(os.path.dirname(__file__), "reports")
+        os.makedirs(reports_dir, exist_ok=True)
+
+        mode_label_map = {
+            "groq": "groq", "gemini": "gemini", "claude": "claude_ai",
+            "chatgpt": "chatgpt", "standard": "sem_ia",
+        }
+        report_paths: Dict[str, str] = {}
+
+        for mode, data in results_by_mode.items():
+            label = mode_label_map.get(mode, mode)
+            filepath = os.path.join(reports_dir, f"{output_name}_{label}.json")
+            report_content = _build_individual_report(mode, data, summary)
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(report_content, f, indent=2, ensure_ascii=False)
+            report_paths[mode] = filepath
+
+        comp_path = os.path.join(reports_dir, f"{output_name}_comparativo.json")
+        with open(comp_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        st.session_state["analysis_result"] = result
+        st.session_state["analysis_report_paths"] = report_paths
+        st.session_state["analysis_comp_path"] = comp_path
+        st.session_state["analysis_output_name"] = output_name
+
+    if "analysis_result" not in st.session_state:
         return
 
-    status_placeholder = st.empty()
-
-    try:
-        result = _run_analysis(log_file_path, active_providers, status_placeholder)
-    except Exception as e:
-        st.error(f"❌ Erro durante a análise: {e}")
-        with st.expander("Detalhes do erro"):
-            import traceback
-            st.code(traceback.format_exc())
-        return
-
-    results_by_mode = result.get("results_by_mode", {})
-    summary = result["summary"]
-
-    if not results_by_mode:
-        st.warning("Nenhum resultado disponível. Verifique as configurações dos provedores.")
-        return
-
-    # Salva relatórios em reports/
-    reports_dir = os.path.join(os.path.dirname(__file__), "reports")
-    os.makedirs(reports_dir, exist_ok=True)
-
+    result = st.session_state["analysis_result"]
+    report_paths = st.session_state["analysis_report_paths"]
+    comp_path = st.session_state["analysis_comp_path"]
+    output_name = st.session_state["analysis_output_name"]
     mode_label_map = {
         "groq": "groq", "gemini": "gemini", "claude": "claude_ai",
         "chatgpt": "chatgpt", "standard": "sem_ia",
     }
-    report_paths: Dict[str, str] = {}
 
-    for mode, data in results_by_mode.items():
-        label = mode_label_map.get(mode, mode)
-        filepath = os.path.join(reports_dir, f"{output_name}_{label}.json")
-        report_content = _build_individual_report(mode, data, summary)
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(report_content, f, indent=2, ensure_ascii=False)
-        report_paths[mode] = filepath
-
-    comp_path = os.path.join(reports_dir, f"{output_name}_comparativo.json")
-    with open(comp_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
+    results_by_mode = result.get("results_by_mode", {})
+    summary = result["summary"]
 
     # Métricas gerais
     st.subheader("📊 Visão Geral do Dataset")
